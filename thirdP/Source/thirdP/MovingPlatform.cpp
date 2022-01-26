@@ -14,7 +14,7 @@ AMovingPlatform::AMovingPlatform() {
     SetMobility(EComponentMobility::Movable);
     
     if (HasAuthority()) {
-        SetReplicates(true);
+        bReplicates = true;
         SetReplicateMovement(true);
     }
 
@@ -33,10 +33,20 @@ void AMovingPlatform::BeginPlay()
     DrawDebugLine(GetWorld(), StartLocation, EndLocation, FColor::Blue, true);
 }
 
+void AMovingPlatform::AddTrigger()
+{
+    PressureCount++;
+}
+
+void AMovingPlatform::RemoveTrigger()
+{
+    if(PressureCount > 0 ) PressureCount--;
+}
+
 void AMovingPlatform::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-    if (HasAuthority()) {
+    if (HasAuthority() && PressureCount) {
         FVector CurLocation = GetActorLocation();
         CurLocation += MovePerSec * DeltaTime * (EndLocation - StartLocation).GetSafeNormal();
 

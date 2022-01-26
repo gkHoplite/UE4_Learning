@@ -16,7 +16,10 @@ class THIRDP_API AMovingPlatform : public AStaticMeshActor
 	
 public:
     AMovingPlatform();
-  
+    
+    void AddTrigger();
+    void RemoveTrigger();
+
 private:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
     float MovePerSec;
@@ -33,7 +36,10 @@ private:
     virtual void Tick(float) override;
     virtual void BeginPlay() override;
 
+    UPROPERTY(EditAnywhere)
+    uint8 PressureCount = 1;
+
 #if WITH_EDITOR // need to be here, to avoid errors when packaging
     virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif 
+#endif  
 };

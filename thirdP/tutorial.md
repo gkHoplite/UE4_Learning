@@ -145,3 +145,109 @@ __ensure__ : marcro check null pointer. it doesn't make crash, log on console.
 UPROPERTY(VisibleAnywhere)
 UPROPERTY(EditAnywhere)
 ```
+
+## Dynamic Event ##
+Delegates
+```c++
+// .h
+TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &APlatformTrigger::OnOverLapBegin);
+```
+
+```c++
+void APlatformTrigger::OnOverLapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+
+```
+
+
+# Game Instance #
+Game Instance apply Logic to different level.
+- Good for console command flags
+- Use this for hosting server and joining
+
+1. Create Game Instance Class in C++
+2. Project Settings -> Game Instance -> Choose custom Game Instance
+- Each Player has own Game Instance
+
+## Init() vs Constructor ##
+- Start editor call constructor
+- Start game call Constructor and Init in sequential order.
+
+
+>Tips: Create default constructor with parent's signature. much safer.
+```c++
+class THIRDP_API UPuzzleGameInstance : public UGameInstance{}
+
+UPuzzleGameInstance::UPuzzleGameInstance(const class FObjectInitializer& ObjectInitializer);
+
+UGameInstance::UGameInstance(const FObjectInitializer& ObjectInitializer);
+```
+
+
+## Exec Keyword ##
+In game backslash( ` ) helps to execute command and UFUNCTION(Exec) create a command with function name.
+```c++
+    UFUNCTION(Exec)
+    void Host();
+```
+ ___theses Class use Exec keyword.___
+- PlayerControllers
+- Pawn Possessed by Controller
+- HUDs
+- Cheat Managers
+- Game Modes
+- Game Instances
+
+## Log on Screen ##
+- c-style printf with format specifier
+ ```c++
+FString X = FString::Printf(TEXT("%s %s "), TEXT(__FUNCTION__),*Address);
+FString Y = TEXT(__FUNCTION__) + FString("192.168.111.0");
+ ```
+
+- set unique key to -1 means making new log line
+```c++
+void UPuzzleGameInstance::Join(const FString& Address)
+{
+    UEngine* Engine = GetEngine();
+    if (ensure(Engine != nullptr)) {
+        Engine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, FString::Printf(TEXT("%s %s "), TEXT(__FUNCTION__),*Address));
+    }
+}
+```
+
+
+# Switching Map
+
+## Server Travel
+use ServerTravel for two main reason
+1. Move to Map
+2. Hosting Server with 'listen' keyword
+3. Move each player to another map one by one.
+
+```c++
+void UPuzzleGameInstance::Host()
+{
+    UWorld* World = GetWorld(); // GWorld instead
+    if (ensure(World != nullptr)) {
+        World->ServerTravel("/Game/ThirdPersonCPP/Maps/ThirdPersonExampleMap?listen");
+    }
+}
+```
+
+## Clien Travel
+Use for connecting to server
+```c++
+void UPuzzleGameInstance::Join(const FString& Address)
+{
+    if (ensure(GWorld != nullptr)) {
+        APlayerController* PController = GetFirstLocalPlayerController(GWorld);
+        PController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
+    }
+}
+
+```
+
+# share with others
+[itch.io](https://itch.io/)
+use itch's application protect your machine from any random executable.
+sandbox mode prohibiting executable to access out of it.
