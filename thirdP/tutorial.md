@@ -1,3 +1,4 @@
+# 1. Hosting and Joining
 # Git merge #
     git fetch /path/to/project-a master
     git merge --allow-unrelated-histories FETCH_HEAD
@@ -247,7 +248,97 @@ void UPuzzleGameInstance::Join(const FString& Address)
 
 ```
 
-# share with others
+## share with others
 [itch.io](https://itch.io/)
 use itch's application protect your machine from any random executable.
 sandbox mode prohibiting executable to access out of it.
+
+
+# __2. UI System__
+## Widget BluePrint for display
+Anchor adjust relative location of the data.
+![img](.\img\2.25_Anchor.png)
+
+## C++ code for functionality
+The Parent class of WBP is UUserWidget
+
+![img](.\img\2.27_WBPClass.png)
+
+## Include BluePrint in C++ Code
+
+> add UMG Module on your project in {file}.Build.cs
+``` c#
+PublicDependencyModuleNames.AddRange(new string[] { "UMG" });
+```
+> include UserWidget.h
+> take every subclass of it for referencing
+``` c++
+//ProjectInstance.cpp
+#include <Blueprint/UserWidget.h>
+UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
+    ConstructorHelpers::FClassFinder<UUserWidget>MenuClass(TEXT("/Game/UI/WBP_MainMenu"));
+    //if (MenuClass.Succeeded()) 
+    if(ensure(MenuClass.Class!= nullptr)) // pointer to class for instantiation
+    {
+        UIMenu = MenuClass.Class;
+        UE_LOG(LogTemp, Warning, TEXT("Detecting %s"), *UIMenu.Get()->GetName());
+    }
+
+}
+
+```
+> Class "TSubclassOf" help to get the subclass belong to specific class
+
+-  TSubclassOf is a template that takes a type and restricts the type we can assign to MenuClass in the blueprint. What we are say here is that the MenuClass variable should hold a class itself (not a pointer or and instance of a class).
+```c++
+// ProjectInstance.h
+private:
+    UPROPERTY()
+    TSubclassOf<class UUserWidget> UIMenu;
+```
+
+> Place it on beginplay or OnStart
+- OnStart called  when gameinstance is starting. GameInstance created before the world do.
+- Call UUserWidget on init or constructor is too early. the viewport is before creating. call this on beginplay or Onstart
+- UE4 Editor didn't call StartGameInstanced. it only works on Game only clients
+```c++
+// For the sake of clean code, remove every if statements for check nullptr.
+void UPuzzleGameInstance::OnStart()
+{
+    Super::OnStart();
+    UUserWidget* Menu = CreateWidget<UUserWidget>(this, UIMenu);
+    Menu->AddToViewport(0);
+    UE_LOG(LogTemp, Warning, TEXT("Create Widget on your screen %s"), TEXT(__FUNCTION__));
+}
+
+void UPuzzleGameInstance::CloseMenu()
+{
+    GetWorld()->GetGameViewport()->RemoveAllViewportWidgets();
+}
+```
+
+BluePrint version is quite interesting.
+![img](\D:\Unreal\UE4_Learning\thirdP\img\2.27BluePrint.png)
+
+
+## Turn on Mouse
+FInputModeDataBase
+ㄴFInputModeUIOnly
+ㄴFInputModeGameAndUI
+ㄴFInputModeGameOnly
+
+```c++
+void UPuzzleGameInstance::CloseMenu()
+{
+    GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(false);
+    GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputModeGameOnly());
+}
+
+void UPuzzleGameInstance::OpenMenu()
+{
+    GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(true);
+    FInputModeGameAndUI FInputMode;
+    FInputMode.SetHideCursorDuringCapture(false); // solve shaking in camera
+    GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputMode);
+}
+```

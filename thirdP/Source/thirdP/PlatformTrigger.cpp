@@ -29,9 +29,9 @@ APlatformTrigger::APlatformTrigger()
 	if (ensure(Mesh != nullptr)){
 				Mesh->SetupAttachment(RootComponent);
 				
-				ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Game/Geometry/Meshes/1M_Cube.1M_Cube"));
-				if (CubeMesh.Succeeded()) {
-								//UE_LOG(LogTemp, Warning, TEXT("Create CubeMesh Successfully"));
+				ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Game/Geometry/Meshes/1M_Cube"));
+				if (CubeMesh.Succeeded())   {
+								UE_LOG(LogTemp, Warning, TEXT("Create CubeMesh Successfully"));
 								Mesh->SetStaticMesh(CubeMesh.Object);
 				}
 	}

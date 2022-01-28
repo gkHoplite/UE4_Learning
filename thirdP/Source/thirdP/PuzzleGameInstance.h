@@ -31,4 +31,18 @@ public:
     UFUNCTION(Exec)
     void Join(const FString& Address);
 
+    UFUNCTION(Exec, BlueprintCallable)
+    void CloseMenu();
+
+    UFUNCTION(Exec)
+    void OpenMenu();
+
+
+    virtual void OnStart() override;
+
+private:
+    UPROPERTY()
+    TSubclassOf<class UUserWidget> UIMenu;
+    UUserWidget* Menu;
+
 };

@@ -3,13 +3,25 @@
 
 #include "PuzzleGameInstance.h"
 
+#include "PlatformTrigger.h"
+#include <Blueprint/UserWidget.h>
+
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
-    UE_LOG(LogTemp, Warning, TEXT("%s"), TEXT(__FUNCTION__));
+    UE_LOG(LogTemp, Warning, TEXT("%s Constructor"), TEXT(__FUNCTION__));
+    
+    ConstructorHelpers::FClassFinder<UUserWidget>MenuBPClass(TEXT("/Game/UI/WBP_MainMenu"));
+
+    //if (MenuBPClass.Succeeded()) 
+    if(ensure(MenuBPClass.Class!= nullptr)) // pointer to class for instantiation
+    {
+        UIMenu = MenuBPClass.Class;
+        UE_LOG(LogTemp, Warning, TEXT("Detecting %s"), *UIMenu.Get()->GetName());
+    }
+
 }
 
 void UPuzzleGameInstance::Init()
 {
-    //Super::Init();
     UE_LOG(LogTemp, Warning, TEXT("%s"),TEXT(__FUNCTION__));
 }
 
@@ -47,4 +59,43 @@ void UPuzzleGameInstance::Join(const FString& Address)
         APlayerController* PController = GetFirstLocalPlayerController(GWorld);
         PController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
     }
+}
+
+void UPuzzleGameInstance::CloseMenu()
+{
+    GetWorld()->GetGameViewport()->RemoveAllViewportWidgets();
+    GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(false);
+    GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputModeGameOnly());
+}
+
+void UPuzzleGameInstance::OpenMenu()
+{
+    if (GetFirstLocalPlayerController(GWorld) != nullptr) {
+        GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(true);
+        FInputModeGameAndUI FInputMode;
+        FInputMode.SetHideCursorDuringCapture(false); // for shaking in camera
+        GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputMode);
+
+    }else {
+        UE_LOG(LogTemp, Warning, TEXT("No Player Controller"));
+    }
+
+    if (GetWorld()->GetGameViewport() != nullptr && UIMenu != nullptr)
+    {
+        Menu = CreateWidget<UUserWidget>(this, UIMenu);
+
+        if (ensure(Menu != nullptr)) {
+            Menu->AddToViewport(0);
+            UE_LOG(LogTemp, Warning, TEXT("Create Widget on your screen %s"), TEXT(__FUNCTION__));
+        }
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("Waiting Viewport or SubClass"));
+    }
+}
+
+void UPuzzleGameInstance::OnStart()
+{
+    Super::OnStart();
+    OpenMenu();
 }
