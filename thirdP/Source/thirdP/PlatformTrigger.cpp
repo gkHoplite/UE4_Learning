@@ -13,32 +13,34 @@
 // Sets default values
 APlatformTrigger::APlatformTrigger()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	
+
 	TriggerVolume = CreateDefaultSubobject<UBoxComponent>(FName("TriggerVolume"));
-	
-	if (ensure(TriggerVolume != nullptr)){
-				RootComponent = TriggerVolume;
+
+	if (ensure(TriggerVolume != nullptr)) {
+		RootComponent = TriggerVolume;
 	}
 
 
-	/* Change StaticMesh in runtime 
+	/* Change StaticMesh in runtime
 				https://answers.unrealengine.com/questions/931569/set-static-mesh-at-runtime-c.html  */
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(FName("PressureHead"));
-	if (ensure(Mesh != nullptr)){
-				Mesh->SetupAttachment(RootComponent);
-				
-				ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Game/Geometry/Meshes/1M_Cube"));
-				if (CubeMesh.Succeeded())   {
-								UE_LOG(LogTemp, Warning, TEXT("Create CubeMesh Successfully"));
-								Mesh->SetStaticMesh(CubeMesh.Object);
-				}
+	if (ensure(Mesh != nullptr)) {
+		Mesh->SetupAttachment(RootComponent);
+
+		//ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Game/Geometry/Meshes/1M_Cube"));
+		CubeMesh = ConstructorHelpers::FObjectFinder<UStaticMesh>(TEXT("/Game/Geometry/Meshes/1M_Cube")).Object;
+
+		if (ensure(CubeMesh != nullptr)) {
+			UE_LOG(LogTemp, Warning, TEXT("Create CubeMesh Successfully"));
+			Mesh->SetStaticMesh(CubeMesh);
+		}
 	}
 
-	if (HasAuthority()){
-					TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &APlatformTrigger::OnOverLapBegin);
-					TriggerVolume->OnComponentEndOverlap.AddDynamic(this, &APlatformTrigger::OnOverLapEnd);
+	if (HasAuthority()) {
+		TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &APlatformTrigger::OnOverLapBegin);
+		TriggerVolume->OnComponentEndOverlap.AddDynamic(this, &APlatformTrigger::OnOverLapEnd);
 	}
 }
 
@@ -58,22 +60,22 @@ void APlatformTrigger::Tick(float DeltaTime)
 
 void APlatformTrigger::OnOverLapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-				//FString Type = HasAuthority() ? FString("Server") : FString("Client");
-				//UE_LOG(LogTemp, Warning, TEXT("%s %s"), *Type, TEXT(__FUNCTION__));
-				
-				for (AMovingPlatform* MP : PlatformsToTrigger) {
-								MP->AddTrigger();
-				}
+	//FString Type = HasAuthority() ? FString("Server") : FString("Client");
+	//UE_LOG(LogTemp, Warning, TEXT("%s %s"), *Type, TEXT(__FUNCTION__));
+
+	for (AMovingPlatform* MP : PlatformsToTrigger) {
+		MP->AddTrigger();
+	}
 
 }
 
 void APlatformTrigger::OnOverLapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-				//FString Type = HasAuthority() ? FString("Server") : FString("Client");
-				//UE_LOG(LogTemp, Warning, TEXT("%s %s"), *Type, TEXT(__FUNCTION__));
+	//FString Type = HasAuthority() ? FString("Server") : FString("Client");
+	//UE_LOG(LogTemp, Warning, TEXT("%s %s"), *Type, TEXT(__FUNCTION__));
 
-				for (AMovingPlatform* MP : PlatformsToTrigger) {
-								MP->RemoveTrigger();
-				}
+	for (AMovingPlatform* MP : PlatformsToTrigger) {
+		MP->RemoveTrigger();
+	}
 }
 

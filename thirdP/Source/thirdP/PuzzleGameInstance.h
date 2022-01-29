@@ -21,6 +21,7 @@ public:
     UPuzzleGameInstance(const class FObjectInitializer& ObjectInitializer);
 
     virtual void Init() override;
+    virtual void OnStart() override;
 
     UFUNCTION(Exec)
     void Host();
@@ -36,9 +37,6 @@ public:
 
     UFUNCTION(Exec)
     void OpenMenu();
-
-
-    virtual void OnStart() override;
 
 private:
     UPROPERTY()

@@ -271,12 +271,14 @@ The Parent class of WBP is UUserWidget
 PublicDependencyModuleNames.AddRange(new string[] { "UMG" });
 ```
 > include UserWidget.h
+
 > take every subclass of it for referencing
+
 ``` c++
 //ProjectInstance.cpp
 #include <Blueprint/UserWidget.h>
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
-    ConstructorHelpers::FClassFinder<UUserWidget>MenuClass(TEXT("/Game/UI/WBP_MainMenu"));
+    ConstructorHelpers::FClassFinder<UUserWidget>MenuClass(TEXT("/Game/UI/WBP_MainMenu")); // Only in Constructor
     //if (MenuClass.Succeeded()) 
     if(ensure(MenuClass.Class!= nullptr)) // pointer to class for instantiation
     {
@@ -287,6 +289,9 @@ UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitia
 }
 
 ```
+- __FClassFinder can only be used from a constructor__
+
+
 > Class "TSubclassOf" help to get the subclass belong to specific class
 
 -  TSubclassOf is a template that takes a type and restricts the type we can assign to MenuClass in the blueprint. What we are say here is that the MenuClass variable should hold a class itself (not a pointer or and instance of a class).
@@ -323,10 +328,9 @@ BluePrint version is quite interesting.
 
 ## Turn on Mouse
 FInputModeDataBase
-ㄴFInputModeUIOnly
-ㄴFInputModeGameAndUI
-ㄴFInputModeGameOnly
-
+- FInputModeUIOnly
+- FInputModeGameAndUI
+- FInputModeGameOnly
 ```c++
 void UPuzzleGameInstance::CloseMenu()
 {
@@ -340,5 +344,97 @@ void UPuzzleGameInstance::OpenMenu()
     FInputModeGameAndUI FInputMode;
     FInputMode.SetHideCursorDuringCapture(false); // solve shaking in camera
     GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputMode);
+}
+```
+
+if you see errors "LogPlayerController: Error: InputMode:UIOnly - Attempting to focus Non-Focusable widget SObjectWidget [Widget.cpp(710)]!", just set below code on yours.
+
+```c++
+MainMenu->bIsFocusable = true;
+```
+
+## UMG Widget ##
+Every Widget has property relating Parent Widget.
+![img](.\img\2.30UMGWidget.png)
+[see WBP_MainMenu_Practice](.\Content\UI\WBP_MainMenu_Practice.uasset)
+
+
+## Button Styling ##
+[UE4 Documentation for Styling](https://docs.unrealengine.com/4.27/en-US/InteractiveExperiences/UMG/UserGuide/Styling/)
+
+adjust only outline of button
+![button example](Content\Button\BoxExample.jpg)
+
+[Google Fonts](https://fonts.google.com/)
+
+
+- wrap background with scale box. set stretch to scale to fill. for blocking awkward ratio.
+- Draw option for button's border setting.
+![helpful property](.\img\2.31HelpfulProperty.png)
+
+## settings for interactive button
+set normal, pressed, clicked.
+![helpful property](.\img\2.32ButtonStyle.png)
+<br>
+<br>
+
+## C++ implementation for button
+> Create C++ UserWidget, reparent WBP_MainMenu to C++ User Widget.
+
+Reference: [Benhumphreys's blog for biding blueprints with c++ class](https://benui.ca/unreal/ui-bindwidget/)
+
+- UPROPERTY set everything simple without any complicated matter. Just add "meta = (BindWidget)" on your UPROPERTY arguments. It directly binds to your BP's widget.
+```c++
+//#include "Components/Button.h"
+UPROPERTY(meta = (BindWidget))
+class UButton* HostButton;
+
+UPROPERTY(meta = (BindWidget))
+class UButton* JoinButton;
+
+UPROPERTY(meta = (BindWidget))
+class UButton* ExtraButton;
+```
+
+Set Above cause below error message.
+> It requires same naming in blueprint widget
+
+![bindwidget Error](.\img\3.33BindWidgetError.png)
+
+### Start with Initialize instead of beginplay
+- UserWidget doesn't have beginplay, Initialize() is propert member fucntion to call these kind of things.
+```c++
+virtual bool Initialize() override;
+```
+
+### Bind clicking with function.
+> bind with delegate
+```c++
+// No arguments needed
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnButtonClickedEvent);
+
+// Four Params
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FInstigatedAnyDamageSignature, float, Damage, const UDamageType*, DamageType, AActor*, DamagedActor, AActor*, DamageCauser);
+```
+
+> Function for Delegate must be declared with UFUNCTION
+```c++
+// .h
+UFUNCTION()
+void DelegateForExtraButton();
+
+// .cpp
+void UMainMenu::DelegateForExtraButton()
+{
+	UPuzzleGameInstance* GameInstance = Cast<UPuzzleGameInstance>(GetGameInstance());
+	GameInstance->Host();
+}
+
+bool UMainMenu::Initialize()
+{
+	if(Super::Initialize() ==false) return false;
+    ExtraButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForExtraButton);
+	
+	return true;
 }
 ```

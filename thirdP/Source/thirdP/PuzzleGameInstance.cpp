@@ -9,7 +9,7 @@
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
     UE_LOG(LogTemp, Warning, TEXT("%s Constructor"), TEXT(__FUNCTION__));
     
-    ConstructorHelpers::FClassFinder<UUserWidget>MenuBPClass(TEXT("/Game/UI/WBP_MainMenu"));
+    ConstructorHelpers::FClassFinder<UUserWidget>MenuBPClass(TEXT("/Game/UI/WBP_MainMenu")); // Only in Constructor
 
     //if (MenuBPClass.Succeeded()) 
     if(ensure(MenuBPClass.Class!= nullptr)) // pointer to class for instantiation
@@ -69,7 +69,7 @@ void UPuzzleGameInstance::CloseMenu()
 }
 
 void UPuzzleGameInstance::OpenMenu()
-{
+{   
     if (GetFirstLocalPlayerController(GWorld) != nullptr) {
         GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(true);
         FInputModeGameAndUI FInputMode;
@@ -83,6 +83,8 @@ void UPuzzleGameInstance::OpenMenu()
     if (GetWorld()->GetGameViewport() != nullptr && UIMenu != nullptr)
     {
         Menu = CreateWidget<UUserWidget>(this, UIMenu);
+        
+        Menu->TakeWidget();
 
         if (ensure(Menu != nullptr)) {
             Menu->AddToViewport(0);
