@@ -5,19 +5,26 @@
 
 #include "PlatformTrigger.h"
 #include <Blueprint/UserWidget.h>
+#include "MainMenu.h"
 
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
     UE_LOG(LogTemp, Warning, TEXT("%s Constructor"), TEXT(__FUNCTION__));
     
     ConstructorHelpers::FClassFinder<UUserWidget>MenuBPClass(TEXT("/Game/UI/WBP_MainMenu")); // Only in Constructor
-
     //if (MenuBPClass.Succeeded()) 
     if(ensure(MenuBPClass.Class!= nullptr)) // pointer to class for instantiation
     {
-        UIMenu = MenuBPClass.Class;
-        UE_LOG(LogTemp, Warning, TEXT("Detecting %s"), *UIMenu.Get()->GetName());
+        MainMenu = MenuBPClass.Class;
+        UE_LOG(LogTemp, Warning, TEXT("Detecting %s"), *MainMenu.Get()->GetName());
     }
 
+    ConstructorHelpers::FClassFinder<UUserWidget>InGameMenuBPClass(TEXT("/Game/UI/WBP_InGameMenu")); // Only in Constructor
+    //if (InGameMenuBPClass.Succeeded()) 
+    if (ensure(InGameMenuBPClass.Class != nullptr)) // pointer to class for instantiation
+    {
+        InGameMenu = InGameMenuBPClass.Class;
+        UE_LOG(LogTemp, Warning, TEXT("Detecting %s"), *InGameMenu.Get()->GetName());
+    }
 }
 
 void UPuzzleGameInstance::Init()
@@ -32,6 +39,11 @@ void UPuzzleGameInstance::Host()
         Engine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, TEXT(__FUNCTION__));
     }
 
+    if (GetFirstLocalPlayerController()->HasAuthority() == false) {
+        UE_LOG(LogTemp, Warning, TEXT("Has no Authority to Host"));
+        return;
+    }
+
     UWorld* World = GetWorld(); // GWrold instead
     if (ensure(World != nullptr)) {
         /* 1. Move to Map
@@ -41,10 +53,18 @@ void UPuzzleGameInstance::Host()
     }
 }
 
-void UPuzzleGameInstance::Play()
+void UPuzzleGameInstance::Play(const FString& PathRef)
 {
-    if (ensure(GWorld != nullptr)) {
-        GWorld->ServerTravel("/Game/ThirdPersonCPP/Maps/ThirdPersonExampleMap");
+    if (GetFirstLocalPlayerController()->HasAuthority())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Move to Map in Server!"));
+        if (ensure(GWorld != nullptr)) {
+            GWorld->ServerTravel(PathRef);
+        }
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("Move to Map in Clients!"));
+        GetFirstLocalPlayerController()->ClientTravel(PathRef, ETravelType::TRAVEL_Absolute);
     }
 }
 
@@ -59,36 +79,21 @@ void UPuzzleGameInstance::Join(const FString& Address)
         APlayerController* PController = GetFirstLocalPlayerController(GWorld);
         PController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
     }
-}
-
-void UPuzzleGameInstance::CloseMenu()
-{
-    GetWorld()->GetGameViewport()->RemoveAllViewportWidgets();
-    GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(false);
-    GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputModeGameOnly());
-}
+} 
 
 void UPuzzleGameInstance::OpenMenu()
 {   
-    if (GetFirstLocalPlayerController(GWorld) != nullptr) {
-        GetFirstLocalPlayerController(GWorld)->SetShowMouseCursor(true);
-        FInputModeGameAndUI FInputMode;
-        FInputMode.SetHideCursorDuringCapture(false); // for shaking in camera
-        GetFirstLocalPlayerController(GWorld)->SetInputMode(FInputMode);
+    if (Menu != nullptr) return;
 
-    }else {
-        UE_LOG(LogTemp, Warning, TEXT("No Player Controller"));
-    }
-
-    if (GetWorld()->GetGameViewport() != nullptr && UIMenu != nullptr)
+    /* Set Widget */
+    if (GetWorld()->GetGameViewport() != nullptr && MainMenu != nullptr)
     {
-        Menu = CreateWidget<UUserWidget>(this, UIMenu);
-        
-        Menu->TakeWidget();
+        //Menu = CreateWidget<UUserWidget>(this, UIMenu);
+        Menu = CreateWidget<UBaseMenu>(this, MainMenu); // Call Native Constructor
 
         if (ensure(Menu != nullptr)) {
-            Menu->AddToViewport(0);
-            UE_LOG(LogTemp, Warning, TEXT("Create Widget on your screen %s"), TEXT(__FUNCTION__));
+            Menu->AddToPlayerScreen();
+            Menu->SetMenuInterface(this);
         }
     }
     else {
@@ -96,8 +101,48 @@ void UPuzzleGameInstance::OpenMenu()
     }
 }
 
+void UPuzzleGameInstance::CloseMenu()
+{
+    if (Menu != nullptr) {
+        Menu->RemoveFromViewport(); // Call NativeDestructor
+        Menu = nullptr;
+    }
+}
+
+void UPuzzleGameInstance::InGameOpenMenu()
+{
+    if (Menu != nullptr) return;
+
+    /* Set Widget */
+    if (GetWorld()->GetGameViewport() != nullptr && InGameMenu != nullptr)
+    {
+        //Menu = CreateWidget<UUserWidget>(this, InGameMenu);
+        Menu = CreateWidget<UBaseMenu>(this, InGameMenu); // Call Native Constructor
+
+        if (ensure(Menu != nullptr)) {
+            Menu->AddToPlayerScreen();
+            Menu->SetMenuInterface(this);
+        }
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("Waiting Viewport or SubClass"));
+    }
+}
+
+void UPuzzleGameInstance::InGameCloseMenu()
+{
+    if (Menu != nullptr) {
+        Menu->RemoveFromViewport(); // Call NativeDestructor
+        Menu = nullptr;
+    }
+}
+
+bool UPuzzleGameInstance::isMenuNull()
+{
+    return (Menu==nullptr);
+}
+
 void UPuzzleGameInstance::OnStart()
 {
     Super::OnStart();
-    OpenMenu();
 }

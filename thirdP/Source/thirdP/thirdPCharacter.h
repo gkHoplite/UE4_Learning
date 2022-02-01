@@ -31,6 +31,8 @@ public:
 
 protected:
 
+	void ToggleMenu();
+
 	/** Resets HMD orientation in VR. */
 	void OnResetVR();
 

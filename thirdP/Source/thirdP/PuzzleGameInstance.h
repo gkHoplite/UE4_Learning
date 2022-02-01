@@ -4,8 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
-#include "PuzzleGameInstance.generated.h"
 
+#include "MenuInterface.h"
+
+#include "PuzzleGameInstance.generated.h"
 
 /**
  * 
@@ -13,7 +15,7 @@
 //class FObjectInitializer;
 
 UCLASS()
-class THIRDP_API UPuzzleGameInstance : public UGameInstance
+class THIRDP_API UPuzzleGameInstance : public UGameInstance, public IMenuInterface
 {
 	GENERATED_BODY()
 	
@@ -22,25 +24,36 @@ public:
 
     virtual void Init() override;
     virtual void OnStart() override;
+    
+    UFUNCTION(Exec)
+    virtual void Host() override;
 
     UFUNCTION(Exec)
-    void Host();
+    virtual void Play(const FString& PathRef) override;
 
     UFUNCTION(Exec)
-    void Play();
-
-    UFUNCTION(Exec)
-    void Join(const FString& Address);
+    virtual void Join(const FString& Address) override;
 
     UFUNCTION(Exec, BlueprintCallable)
-    void CloseMenu();
-
-    UFUNCTION(Exec)
     void OpenMenu();
 
-private:
-    UPROPERTY()
-    TSubclassOf<class UUserWidget> UIMenu;
-    UUserWidget* Menu;
+    UFUNCTION(Exec)
+    void CloseMenu();
 
+    UFUNCTION(Exec, BlueprintCallable)
+    void InGameOpenMenu();
+
+    UFUNCTION(Exec)
+    void InGameCloseMenu();
+
+    bool isMenuNull();
+private:
+    TSubclassOf<class UUserWidget> MainMenu;
+
+    TSubclassOf<class UUserWidget> InGameMenu;
+
+    
+    //UUserWidget* Menu;
+
+    class UBaseMenu* Menu;
 };

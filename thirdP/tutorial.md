@@ -403,12 +403,19 @@ Set Above cause below error message.
 
 ### Start with Initialize instead of beginplay
 - UserWidget doesn't have beginplay, Initialize() is propert member fucntion to call these kind of things.
+- NativeConstructor is also good choice.
+
+Initialize() -> NativeConstructor()
 ```c++
 virtual bool Initialize() override;
+virtual bool NativeConstructor() override;
+
 ```
 
 ### Bind clicking with function.
 > bind with delegate
+
+-  Onclicked variable only takes Delegate with no Params
 ```c++
 // No arguments needed
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnButtonClickedEvent);
@@ -436,5 +443,201 @@ bool UMainMenu::Initialize()
     ExtraButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForExtraButton);
 	
 	return true;
+}
+```
+
+
+# Dependency Inversion
+> 1.Create C++ Unreal Interface Class. header have two class.
+- Unreal's reflection system detect every class belong to UObject. UInterface's child, UMenuInterface is for that.
+- inheritancing in both UserWidget and Game Instance cause diamond inheritance problem. So it needs another class has no parent, IMenuInterface.
+
+ ```c++
+ // MenuInterface.h
+class IMenuInterface
+{
+public:
+	// Declare Pure Virtual Function
+	virtual void Host() = 0;
+	virtual void Join(const FString& Address) = 0;
+	virtual void Play() = 0;
+};
+
+// PuzzleGameInstance.h
+ class UPuzzleGameInstance : public UGameInstance, public IMenuInterface // Added
+```
+
+```c++
+// MainMenu.h
+class UMainMenu : public UUserWidget{
+private:
+	class IMenuInterface* MenuInterface;
+}
+
+// MainMenu.cpp
+void UMainMenu::DelegateForHostButton()
+{
+    MenuInterface->Host();
+}
+ ```
+- MenuInterface.h will never depend on MainMenu.h so we don't need to worry about circular dependency
+
+- interface doesn't actually exist after compilation and the MainMenu just calls the function directly on the GameInstance
+
+
+## Is interface class necessary?
+> You can think of an interface as a contract of what a specific system or class will contain.  For example, right now our game instance uses the built in functions for networking and multiplayer, but in the future you may want to use steam, or maybe you wand to publish to Xbox and for these the Host and Join functions may need to do additional steps. This would require you to build out different game instance classes and functions. Without the interface your menu code would have to
+
+> 1. figure out what game instance class your using
+>2. go through a cast
+> 3. go through a switch statement to figure out what code to call
+
+>by using an interface it Guarantees whatever game instance is implementing the interface has a Host and Join function that take the same arguments so the code you write in menu system can just assume you can call gameinstance->Host()
+
+[Implement Code](https://github.com/UnrealMultiplayer/2_Menu_System/commit/7c4c32cac2b805bb45d289cb4d54f123fc9e75c6)
+```c++
+void UPuzzleGameInstance::OpenMenu()
+{   
+    //Menu = CreateWidget<UUserWidget>(this, UIMenu);
+    Menu = CreateWidget<UMainMenu>(this, UIMenu);
+    
+    Menu->TakeWidget();
+    Menu->AddToViewport(0);
+
+    Menu->SetMenuInterface(this); // Added
+}
+```
+
+# Architectural Pattern
+An architectural pattern is a general, reusable solution to a commonly occurring problem in software architecture within a given context.
+
+# SOLID 
+first five object-oriented design (OOD) principles
+|Abb |details |
+|-|-|
+|S | Single-responsiblity Principle |
+|O | Open-closed Principle |
+|L | Liskov Substitution Principle |
+|I | Interface Segregation Principle |
+|D | Dependency Inversion Principle  |
+
+## Inversion of Control
+if a class needs another class for functionality, another class is dependency.
+Normally a class intantiate another class inside of the class, but applying Inversion of Control, Out of the class assign the Instance of the another class into the calss. this is what inversion of control.
+[Youtube Video explaining about Inversion Control](https://www.youtube.com/watch?v=EPv9-cHEmQw)
+## Dependency Injection 
+Instead of creating dependency in the class, take it from method as a parameter is dependency injection. Use interface class for parameter makes more generic code.
+> Dependency Inversion Principle:
+>> Rely on abstractions rather than concrete implementations
+
+[Youtube video explaining dependency injection](https://www.youtube.com/watch?v=IKD2-MAkXyQ)
+
+## Compile/Run time dependency
+Hard coding is Compile time dependency. Only Change the code could use different class. Run time dependency is vice versa. using interface class allow to decide which class is using at compile time.
+
+
+## Refactoring Code 
+```c++
+// MainMenu.cpp 
+void UMainMenu::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+    GetOwningPlayer()->SetShowMouseCursor(true);
+    FInputModeGameAndUI FInputMode;
+    FInputMode.SetHideCursorDuringCapture(false); // for shaking in camera
+    GetOwningPlayer()->SetInputMode(FInputMode);
+}
+
+void UMainMenu::NativeDestruct()
+{
+    GetOwningPlayer()->SetShowMouseCursor(false);
+    GetOwningPlayer()->SetInputMode(FInputModeGameOnly());
+
+	Super::NativeDestruct();
+}
+
+// PuzzleGameInstance.cpp
+void UPuzzleGameInstance::CloseMenu()
+{
+    if (ensure(Menu != nullptr)) {
+        Menu->RemoveFromViewport(); // Call NativeDestructor
+    }
+}
+```
+
+## Why Change level close Menu?
+```c++
+virtual void UUserWidget::OnLevelRemovedFromWorld(...);
+```
+
+- Called when a top level widget is in the viewport and the world is potentially coming to and end. When this occurs, 
+- it's not save to keep widgets on the screen.  We automatically remove them when this happens and mark them for pending kill.
+
+
+## Editing Widget BluePrint
+WidgetSwitcher
+![WidgetSwitcher](.\img\3.38WidgetSwitcher.png)
+
+```c++
+UPROPERTY(meta = (BindWidget))
+class UWidgetSwitcher* MenuSwitcher;
+    
+UPROPERTY(meta = (BindWidget))
+class UEditableTextBox* AddrBox;
+
+UPROPERTY(meta = (BindWidget))
+UWidget* JoinOverlay;
+
+class IMenuInterface* MenuInterface;
+```
+
+switching two variable
+```c++
+void UMainMenu::DelegateForJoinButton()
+{
+	MenuSwitcher->SetActiveWidget(JoinOverlay);
+}
+
+void UMainMenu::DelegateForCancelButton()
+{
+	MenuSwitcher->SetActiveWidgetIndex(0);
+}
+
+void UMainMenu::DelegateForAddrButton()
+{
+	FString Address{ AddrBox->GetText().ToString() };
+	MenuInterface->Join(Address);
+}
+```
+
+
+# Error handling with event dirven trigger
+```c++
+// .h
+UFUNCTION()
+void HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);
+UFUNCTION()
+void HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString);
+```
+
+```c++
+//.cpp
+void UMainMenu::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Damn s NetworkError %s"), *ErrorString);
+}
+
+void UMainMenu::HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Damn s TravelError %s"), *ErrorString);
+}
+
+void UMainMenu::NativeConstruct()
+{
+	Super::NativeConstruct();
+
+	GEngine->OnNetworkFailure().AddUObject(this, &UMainMenu::HandleNetworkFailure);
+	GEngine->OnTravelFailure().AddUObject(this, &UMainMenu::HandleTravelFaliure);
 }
 ```

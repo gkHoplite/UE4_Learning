@@ -9,6 +9,8 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 
+#include "PuzzleGameInstance.h"
+
 //////////////////////////////////////////////////////////////////////////
 // AthirdPCharacter
 
@@ -73,8 +75,23 @@ void AthirdPCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerIn
 
 	// VR headset functionality
 	PlayerInputComponent->BindAction("ResetVR", IE_Pressed, this, &AthirdPCharacter::OnResetVR);
+
+	// OpenMenu in game
+	PlayerInputComponent->BindAction("OpenMenu", IE_Pressed, this, &AthirdPCharacter::ToggleMenu);
 }
 
+void AthirdPCharacter::ToggleMenu()
+{
+	UPuzzleGameInstance* PGameInstance = Cast<class UPuzzleGameInstance>(GetWorld()->GetGameInstance());
+	if (PGameInstance == nullptr) return;
+	 
+	if(PGameInstance->isMenuNull()){
+		PGameInstance->InGameOpenMenu();
+	}
+	else {
+		PGameInstance->InGameCloseMenu();
+	}
+}
 
 void AthirdPCharacter::OnResetVR()
 {
