@@ -46,13 +46,25 @@ public:
     UFUNCTION(Exec)
     void InGameCloseMenu();
 
+    UFUNCTION(Exec)
+    void LetmeKnow();
+
     bool isMenuNull();
+
+protected:
+    // Error Handling for unvalid URL
+    UFUNCTION()
+    void HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);
+    UFUNCTION()
+    void HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString);
+
 private:
+    bool isHandledTrvaling;
+
     TSubclassOf<class UUserWidget> MainMenu;
 
     TSubclassOf<class UUserWidget> InGameMenu;
 
-    
     //UUserWidget* Menu;
 
     class UBaseMenu* Menu;

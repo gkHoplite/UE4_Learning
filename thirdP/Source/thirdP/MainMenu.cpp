@@ -7,6 +7,9 @@
 #include <Components/EditableTextBox.h>
 #include "PuzzleGameInstance.h"
 
+
+#include "Kismet/KismetSystemLibrary.h"
+
 void UMainMenu::DelegateForHostButton()
 {
 	//UPuzzleGameInstance* GameInstance = Cast<UPuzzleGameInstance>(GetGameInstance());
@@ -55,6 +58,18 @@ void UMainMenu::DelegateForExitButton()
 	Cast<UPuzzleGameInstance>(GetGameInstance())->CloseMenu();
 }
 
+void UMainMenu::DelegateForQuitButton()
+{
+	GWorld->GetFirstPlayerController()->ConsoleCommand("quit");
+
+//#if WITH_EDITOR
+//	GWorld->GetFirstPlayerController()->ConsoleCommand("quit");
+//#else	
+//	FGenericPlatformMisc::RequestExit(false); // Exiting Editor also
+//#endif
+
+}
+
 bool UMainMenu::Initialize()
 {
 	UE_LOG(LogTemp, Warning, TEXT(__FUNCTION__));
@@ -75,10 +90,7 @@ void UMainMenu::NativeConstruct()
 
 	AddrButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForAddrButton);
 	CancelButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForCancelButton);
-
-	/* Set Travel Error Handling */
-	GEngine->OnNetworkFailure().AddUObject(this, &UMainMenu::HandleNetworkFailure);
-	GEngine->OnTravelFailure().AddUObject(this, &UMainMenu::HandleTravelFaliure);
+	QuitButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForQuitButton);
 }
 
 void UMainMenu::NativeDestruct()
@@ -90,14 +102,23 @@ void UMainMenu::NativeDestruct()
 	Super::NativeDestruct();
 }
 
-void UMainMenu::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)
+void UMainMenu::AddToScreen(ULocalPlayer* Player, int32 ZOrder)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Damn s NetworkError %s"), *ErrorString);
+	Super::AddToScreen(Player, ZOrder);
+	//FWorldDelegates::LevelRemovedFromWorld.RemoveAll(this);
 }
 
-void UMainMenu::HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Damn s TravelError %s"), *ErrorString);
-}
-
-
+//void UMainMenu::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld)
+//{
+//	Super::OnLevelRemovedFromWorld(InLevel, InWorld);
+//
+//	UWorld* World = GetWorld();
+//	if (!World) { return; }
+//	APlayerController* PlayerController = World->GetFirstPlayerController();
+//	if (!PlayerController) { return; }
+//
+//	FInputModeGameOnly InputModeData;
+//
+//	PlayerController->SetInputMode(InputModeData);
+//	PlayerController->bShowMouseCursor = false;
+//}

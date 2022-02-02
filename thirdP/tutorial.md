@@ -576,6 +576,12 @@ virtual void UUserWidget::OnLevelRemovedFromWorld(...);
 
 
 ## Editing Widget BluePrint
+Use {Behavior} -> {Tool Tip Text} for explanation
+
+{Canvas panel -> Size To Content} is So useful
+![Canvas Panel](img\3.44UseCanvasPanel.png)
+<br><br>
+
 WidgetSwitcher
 ![WidgetSwitcher](.\img\3.38WidgetSwitcher.png)
 
@@ -641,3 +647,7 @@ void UMainMenu::NativeConstruct()
 	GEngine->OnTravelFailure().AddUObject(this, &UMainMenu::HandleTravelFaliure);
 }
 ```
+
+
+# Online SubSystem
+https://www.udemy.com/course/unrealmultiplayer/learn/lecture/7947920#questions/5962040

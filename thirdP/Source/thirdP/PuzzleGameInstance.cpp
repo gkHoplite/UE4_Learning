@@ -5,11 +5,10 @@
 
 #include "PlatformTrigger.h"
 #include <Blueprint/UserWidget.h>
-#include "MainMenu.h"
+#include "BaseMenu.h"
 
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
     UE_LOG(LogTemp, Warning, TEXT("%s Constructor"), TEXT(__FUNCTION__));
-    
     ConstructorHelpers::FClassFinder<UUserWidget>MenuBPClass(TEXT("/Game/UI/WBP_MainMenu")); // Only in Constructor
     //if (MenuBPClass.Succeeded()) 
     if(ensure(MenuBPClass.Class!= nullptr)) // pointer to class for instantiation
@@ -30,6 +29,32 @@ UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitia
 void UPuzzleGameInstance::Init()
 {
     UE_LOG(LogTemp, Warning, TEXT("%s"),TEXT(__FUNCTION__));
+    /* Set Travel Error Handling */
+    GEngine->OnNetworkFailure().AddUObject(this, &UPuzzleGameInstance::HandleNetworkFailure);
+    GEngine->OnTravelFailure().AddUObject(this, &UPuzzleGameInstance::HandleTravelFaliure);
+    isHandledTrvaling = false;
+
+}
+
+void UPuzzleGameInstance::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)
+{
+    UE_LOG(LogTemp, Warning, TEXT("Damn NetworkError %s"), *ErrorString);
+    if (isHandledTrvaling == false) {
+        GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
+        //GetFirstLocalPlayerController()->ClientReturnToMainMenu(ErrorString);
+
+        isHandledTrvaling = true;
+    }
+}
+
+void UPuzzleGameInstance::HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString)
+{
+    UE_LOG(LogTemp, Warning, TEXT("Damn TravelError %s"), *ErrorString);
+    if (isHandledTrvaling == false) {
+        GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
+        //GetFirstLocalPlayerController()->ClientReturnToMainMenu(ErrorString);
+        isHandledTrvaling = true;
+    }
 }
 
 void UPuzzleGameInstance::Host()
@@ -135,6 +160,15 @@ void UPuzzleGameInstance::InGameCloseMenu()
         Menu->RemoveFromViewport(); // Call NativeDestructor
         Menu = nullptr;
     }
+}
+
+void UPuzzleGameInstance::LetmeKnow()
+{
+    //if(Menu->IsA<UMainMenu>()){
+    //    UE_LOG(LogTemp, Warning, TEXT("Equal!"));
+    //}else {
+    //    UE_LOG(LogTemp, Warning, TEXT("Diff!")); 
+    //}
 }
 
 bool UPuzzleGameInstance::isMenuNull()

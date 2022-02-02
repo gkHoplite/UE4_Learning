@@ -35,6 +35,9 @@ private:
 	class UButton* CancelButton;
 
 	UPROPERTY(meta = (BindWidget))
+	class UButton* QuitButton;
+
+	UPROPERTY(meta = (BindWidget))
 	class UWidgetSwitcher* MenuSwitcher;
 		
 	UPROPERTY(meta = (BindWidget))
@@ -63,16 +66,17 @@ private:
 	UFUNCTION()
 	void DelegateForExitButton();
 
+	UFUNCTION()
+	void DelegateForQuitButton();
+
 protected:
+
 	// UserWidget doesn't have beginplay, Initialize() 
 	// is proper member fucntion to call these kind of things.
 	virtual bool Initialize() override;
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
-	// Error Handling for unvalid URL
-	UFUNCTION()
-	void HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString);
-	UFUNCTION()
-	void HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString);
+	// For Persistent UI
+	virtual void AddToScreen(ULocalPlayer* Player, int32 ZOrder) override;
 };
