@@ -651,3 +651,11 @@ void UMainMenu::NativeConstruct()
 
 # Online SubSystem
 https://www.udemy.com/course/unrealmultiplayer/learn/lecture/7947920#questions/5962040
+
+https://medium.com/swlh/building-and-hosting-an-unreal-engine-dedicated-server-with-aws-and-docker-75317780c567
+
+https://www.youtube.com/watch?v=tOy0xYaP3wA
+
+
+# 3. Online Multiplayer, Steam SDK
+![](./img/4.47SteamSDK.png)
