@@ -658,4 +658,75 @@ https://www.youtube.com/watch?v=tOy0xYaP3wA
 
 
 # 3. Online Multiplayer, Steam SDK
+
+## Test Steam Samples
 ![](./img/4.47SteamSDK.png)
+
+install 
+
+1. make sure you install the directx sdk (june 2010) (https://www.microsoft.com/en-us/download/details.aspx?id=6812 45)
+2. Once you unzip the steamworks sdk and open “SteamworksExample.sln”, right-click the project in the solution explorer and choose “properties” and select the “VC++ Directories” on the left of the window
+3. Click on the “Include Directories” on the right side of the line where the paths are listed and you will see a dropdown selection, click that and in there you should see “Edit”, click that and it opens a new window.
+4. Click the yellow folder icon at the top right, then click the 3 dots to choose the include folder (C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include), then click ok to go back to the properties window.
+5. Now click on the “Library Directories” the same way you did the include (right side of the window, “edit”,) and once again click the yellow folder icon and select this path (C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86) and click ok and ok again to close the properties window.
+6. Rebuild the program and it should compile.
+
+Include path to add
+
+C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include
+
+Library path to add
+
+C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Lib\x86
+
+## Use Unreal Subsystem
+What is Online Subsystem?
+- The Online Subsystem and its interfaces provide a common way to access the functionality of online services such as Steam, Xbox Live, Facebook, and so on
+
+How to use it?
+{Project Name}.build.cs
+```c++
+PublicDependencyModuleNames.AddRange(new string[] { "OnlineSubsystem" });
+```
+PuzzleGameInstance.cpp is Good place to include OnlineSubsystem.
+
+```c++
+#include <OnlineSubsystem.h>
+```
+- __If your intelisense doesn't detect OnlineSubsystem.h, then regenerate solution file.__
+
+Test Whether OnlineSubsystem works in code.
+```c++
+#include <OnlineSessionSettings.h>
+void UPuzzleGameInstance::Init()
+{
+    /* Set OnlineSubsystem */
+    IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+    if (OSS != nullptr) {
+		UE_LOG(LogTemp, Warning, TEXT("Create OnlineSubsystem : %s"), *OSS->GetSubsystemName().ToString());
+        IOnlineSessionPtr SessionInterface = OSS->GetSessionInterface();
+        if (SessionInterface.IsValid()) { // check shared pointer with valid method not != nullptr
+			UE_LOG(LogTemp, Warning, TEXT("Create Session"));
+        }
+    }
+}
+```
+
+## How Reflection system works when destorying Actor
+- When an AActor or UActorComponent is destroyed or otherwise removed from play, all references to it that are visible to the reflection system (UProperty pointers and pointers stored in Unreal Engine container classes such as TArray) are automatically nulled.
+
+- If you want an Object pointer that is not a UProperty, consider using __TWeakObjectPtr__. This is a "weak" pointer, meaning it will not prevent garbage collection, but it can be queried for validity before being accessed and will be set to null if the Object it points to is destroyed.
+
+__So there is two way to avoid circular dependency, 1. use UProperty 2. use Tweakptr__
+
+## OnlineSession
+Each game created on server is Session. Figuring out how to use Session
+https://docs.unrealengine.com/4.27/en-US/ProgrammingAndScripting/Online/SessionInterface/
+
+
+```c++
+#include <Interfaces/OnlineSessionInterface.h>
+
+```
+
+create session callback broadcast other to notify compliation of session 

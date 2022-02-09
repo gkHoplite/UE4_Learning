@@ -2,10 +2,12 @@
 
 
 #include "PuzzleGameInstance.h"
-
 #include "PlatformTrigger.h"
-#include <Blueprint/UserWidget.h>
 #include "BaseMenu.h"
+#include <Blueprint/UserWidget.h>
+#include <OnlineSubsystem.h>
+#include <OnlineSessionSettings.h>
+#include <Interfaces/OnlineSessionInterface.h>
 
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
     UE_LOG(LogTemp, Warning, TEXT("%s Constructor"), TEXT(__FUNCTION__));
@@ -34,6 +36,18 @@ void UPuzzleGameInstance::Init()
     GEngine->OnTravelFailure().AddUObject(this, &UPuzzleGameInstance::HandleTravelFaliure);
     isHandledTrvaling = false;
 
+    /* Set OnlineSubsystem */
+    IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
+    if (OSS != nullptr) {
+		UE_LOG(LogTemp, Warning, TEXT("Create OnlineSubsystem : %s"), *OSS->GetSubsystemName().ToString());
+        IOnlineSessionPtr SessionInterface = OSS->GetSessionInterface();
+        if (SessionInterface.IsValid()) { // check shared pointer with valid method not != nullptrw
+			UE_LOG(LogTemp, Warning, TEXT("Created Session is valid"));
+            FOnlineSessionSettings SessionSettings;
+            SessionInterface->CreateSession(int32(0), FName("Come in my Session"), SessionSettings);
+            //SessionInterface->OnCreateSessionCompleteDelegates.AddUObject(this,);
+        }
+    }
 }
 
 void UPuzzleGameInstance::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)

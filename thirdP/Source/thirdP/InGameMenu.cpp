@@ -1,8 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include <Components/Button.h>
 #include "InGameMenu.h"
-#include "MenuInterface.h"
+#include <Components/Button.h>
+//#include "MenuInterface.h"
 #include "PuzzleGameInstance.h"
 
 void UInGameMenu::DelegateCancelButton()

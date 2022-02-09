@@ -67,5 +67,6 @@ private:
 
     //UUserWidget* Menu;
 
+    UPROPERTY()
     class UBaseMenu* Menu;
 };
