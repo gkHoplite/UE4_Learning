@@ -157,9 +157,11 @@ void UPuzzleGameInstance::CreateSession(FName SessionName)
 {
     if (SessionInterface != nullptr) {
 	    FOnlineSessionSettings SessionSettings;
-        SessionSettings.bIsLANMatch = true;
-        SessionSettings.bShouldAdvertise = true; // Set visible in querying
+        SessionSettings.bIsLANMatch = false; // Use Steam OSS
         SessionSettings.NumPublicConnections = 3;
+        SessionSettings.bShouldAdvertise = true; // Set visible in querying
+        SessionSettings.bUsesPresence = true; // For Steam OSS
+        SessionSettings.bUseLobbiesIfAvailable = true; // For Steam OSS
 	    SessionInterface->CreateSession(int32(0), SessionName, SessionSettings);
     }
 }
@@ -207,8 +209,9 @@ void UPuzzleGameInstance::Update()
 	if (SessionSearch.IsValid()) {
 		UE_LOG(LogTemp, Warning, TEXT("Sharedptr for finding Session is valid"));
 
-		SessionSearch->bIsLanQuery = true;
-		//SessionSearch->QuerySettings.Set(); // With API
+		//SessionSearch->bIsLanQuery = true;
+        SessionSearch->MaxSearchResults = 100;
+		SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals); // With API
 		SessionInterface->FindSessions(0, SessionSearch.ToSharedRef()); // Add Session to SessionSearch 
 	}
 }

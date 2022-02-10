@@ -840,7 +840,103 @@ void UPuzzleGameInstance::OnJoinSessionComplete(FName SessionName, EOnJoinSessio
 }
 ````
 
-SessionInterface->OnJoinSessionCompleteDelegates takes below params.
+SessionInterface->OnJoinSessionCompleteDelegates takes below.
 ```c++
 typedef TMulticastDelegate_TwoParams< void, FName, EOnJoinSessionCompleteResult::Type > FOnJoinSessionComplete
 ```
+
+
+# Work with OSS Steam
+Lecture 63.
+![img](./img/6.63SteamOSSModule.png)
+```c++
+// {Project}.Build.cs
+PublicDependencyModuleNames.AddRange(new string[] { "OnlineSubsystemSteam" });
+
+```
+
+
+Set __Config/DefaultEngine.ini__
+```txt
+[/Script/Engine.GameEngine]
++NetDriverDefinitions=(DefName="GameNetDriver",DriverClassName="OnlineSubsystemSteam.SteamNetDriver",DriverClassNameFallback="OnlineSubsystemUtils.IpNetDriver")
+
+[OnlineSubsystem]
+DefaultPlatformService=Steam
+
+[OnlineSubsystemSteam]
+bEnabled=true
+SteamDevAppId=480
+
+; If using Sessions
+; bInitServerOnClient=true
+
+[/Script/OnlineSubsystemSteam.SteamNetDriver]
+NetConnectionClassName="OnlineSubsystemSteam.SteamNetConnection"
+```
+
+executeion batch file for logging
+```txt
+start "" "C:/Program Files/Epic Games/UE_4.27/Engine/Binaries/Win64/UE4Editor.exe" "D:/Unreal/UE4_Learning/thirdP/thirdP.uproject" -game -LOG -WINDOWED -ResX=800 -ResY=900 -WinX=0 -WinY=20
+```
+after executing it, write down this command for more log message.
+```
+Log LogOnline Verbose
+Log LogOnline VeryVerbose
+```
+
+or add it on DefaultEngine.ini
+```txt
+[Core.Log]
+LogOnline=VeryVerbose
+LogOnlineGame=VeryVerbose
+```
+for batch file
+```txt
+"D:\Program Files\UE_4.22\Engine\Binaries\Win64\UE4Editor.exe" "C:\Users\User\Documents\Unreal Projects\PuzzlePlatforms\PuzzlePlatforms.uproject" -game -log -windowed -resx=1280 -resy=720 -logcmds="logonline VeryVerbose, logonlinegame VeryVerbose"
+```
+
+### 17 "Presence" For Steam Lobbies ###
+It needs Two Machine and Two Steam Accounts
+Lect65
++ Enabling presence for the server.
++ Enabling presence for search.
++ Debugging our connection.
+
+```c++
+void UPuzzleGameInstance::CreateSession(FName SessionName)
+{
+    FOnlineSessionSettings SessionSettings;
+    SessionSettings.bIsLANMatch = false; // Use Steam OSS
+    SessionSettings.NumPublicConnections = 3;
+    SessionSettings.bShouldAdvertise = true; // Set visible in querying
+    SessionSettings.bUsesPresence = true; // For Steam OSS
+    SessionSettings.bUseLobbiesIfAvailable = true; // For Steam OSS
+    SessionInterface->CreateSession(int32(0), SessionName, SessionSettings);
+}
+void UPuzzleGameInstance::Update()
+{
+	SessionSearch = MakeShareable(new FOnlineSessionSearch());
+    //SessionSearch->bIsLanQuery = true;
+    SessionSearch->MaxSearchResults = 100;
+    SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals); // With API
+    SessionInterface->FindSessions(0, SessionSearch.ToSharedRef()); // Add Session to SessionSearch 
+}
+```
+
+### Filtering Lobby
+The ID the tutorial uses is for Spacewar and many other steam devs use it for debugging networking. If you want to filter the list to just lobbies for your project, you can add the following to your game instance:
+
+```c++
+//Inside CreateSession:
+SessionSettings.Set(SEARCH_KEYWORDS, FString("MyUniqueKeyword"), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+
+//And inside Refresh Server List:
+SessionSearch->QuerySettings.Set(SEARCH_KEYWORDS, FString("MyUniqueKeyword"), EOnlineComparisonOp::In);
+```
+
+### Inviting Friends Directly
+https://community.gamedev.tv/t/join-game-directly-or-via-invite/191615
+
+
+https://community.gamedev.tv/t/testing-solo-with-windows-sandbox/161684
