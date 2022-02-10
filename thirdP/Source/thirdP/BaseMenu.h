@@ -20,4 +20,6 @@ protected:
 	virtual void NativeDestruct() override;
 public:
 	void SetMenuInterface(IMenuInterface* MenuIF);
+
+	virtual void UpdateServerList(TArray<FString> ServerNames);
 };

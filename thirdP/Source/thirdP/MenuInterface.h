@@ -24,6 +24,7 @@ class THIRDP_API IMenuInterface
 public:
 	// Declare Pure Virtual Function
 	virtual void Host() = 0;
-	virtual void Join(const FString& Address) = 0;
+	virtual void Join(uint32 i) = 0;
 	virtual void Play(const FString& PathRef) = 0;
+	virtual void Update() = 0;
 };

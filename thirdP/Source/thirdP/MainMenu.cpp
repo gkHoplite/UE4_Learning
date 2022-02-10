@@ -7,8 +7,43 @@
 #include <Components/EditableTextBox.h>
 #include "PuzzleGameInstance.h"
 //#include "MenuInterface.h"
+#include "ServerRow.h"
+#include <Components/TextBlock.h>
 
 #include "Kismet/KismetSystemLibrary.h"
+
+UMainMenu::UMainMenu(const FObjectInitializer& ObjectInitializer)// :Super(ObjectInitializer)
+{
+	/* UI For ServerList in Scroll box */
+	ConstructorHelpers::FClassFinder<UUserWidget>ServerRowBPClass(TEXT("/Game/UI/WBP_ServerRow")); // Only in Constructor
+	if (ensure(ServerRowBPClass.Class != nullptr)) // pointer to class for instantiation
+	{
+		ServerRowClass = ServerRowBPClass.Class;
+		UE_LOG(LogTemp, Warning, TEXT("Detecting %s"), *ServerRowClass.Get()->GetName());
+	}
+}
+
+void UMainMenu::UpdateServerList(TArray<FString> ServerNames)
+{
+	if (GetWorld()->GetGameViewport() == nullptr || ServerRowClass == nullptr) { return; }
+	
+	ServerList->ClearChildren();
+
+	int16 index = 0;
+	for (const FString& ServerName : ServerNames) {
+		UServerRow* Row = CreateWidget<UServerRow>(this, ServerRowClass); // Call Native Constructor
+		if (ensure(Row != nullptr)) {
+			Row->ServerName->SetText(FText::FromString(ServerName));
+			Row->FromMainMenuSet(this, index++);
+			ServerList->AddChild(Row);
+		}
+	}
+}
+
+void UMainMenu::FromServerRowSetIndex(uint32 i)
+{
+	SelectedIndex = i;
+}
 
 void UMainMenu::DelegateForHostButton()
 {
@@ -25,13 +60,11 @@ void UMainMenu::DelegateForJoinButton()
 {
 	//MenuSwitcher->SetActiveWidgetIndex(1);
 	MenuSwitcher->SetActiveWidget(JoinOverlay);
+
 }
 
 void UMainMenu::DelegateForExtraButton()
 {
-	//UPuzzleGameInstance* GameInstance = Cast<UPuzzleGameInstance>(GetGameInstance());
-	//GameInstance->Play();
-
 	if (ensure(MenuInterface != nullptr)) {
 		MenuInterface->Play("/Game/ThirdPersonCPP/Maps/ThirdPersonExampleMap");
 	}
@@ -39,12 +72,10 @@ void UMainMenu::DelegateForExtraButton()
 
 void UMainMenu::DelegateForAddrButton()
 {
-	//UPuzzleGameInstance* GameInstance = Cast<UPuzzleGameInstance>(GetGameInstance());
-	//GameInstance->Join(FString("127.0.0.1"));
-	
-	const FString& Address{ AddrBox->GetText().ToString() };
-	UE_LOG(LogTemp, Warning, TEXT("input address %s"), *Address);
-	MenuInterface->Join(Address);
+	if (SelectedIndex.IsSet() && MenuInterface != nullptr) {
+		UE_LOG(LogTemp, Warning, TEXT("selected index %d"), SelectedIndex.GetValue());
+		MenuInterface->Join(SelectedIndex.GetValue());
+	}
 }
 
 void UMainMenu::DelegateForCancelButton()
@@ -67,7 +98,12 @@ void UMainMenu::DelegateForQuitButton()
 //#else	
 //	FGenericPlatformMisc::RequestExit(false); // Exiting Editor also
 //#endif
+}
 
+void UMainMenu::DelegateForUpdateButton()
+{
+	if (MenuInterface == nullptr) { return; }
+	MenuInterface->Update();
 }
 
 bool UMainMenu::Initialize()
@@ -91,6 +127,8 @@ void UMainMenu::NativeConstruct()
 	AddrButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForAddrButton);
 	CancelButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForCancelButton);
 	QuitButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForQuitButton);
+	
+	UpdateButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForUpdateButton);
 }
 
 void UMainMenu::NativeDestruct()

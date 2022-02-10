@@ -724,9 +724,123 @@ Each game created on server is Session. Figuring out how to use Session
 https://docs.unrealengine.com/4.27/en-US/ProgrammingAndScripting/Online/SessionInterface/
 
 
+## Observer pattern
+- OnlineSession notify it's completion with delegates
+- publisher notify subscriber with formatted interface, call this [Observer pattern](https://refactoring.guru/design-patterns/observer)
+
+
 ```c++
 #include <Interfaces/OnlineSessionInterface.h>
 
 ```
 
 create session callback broadcast other to notify compliation of session 
+
+
+## TOptional
+- TOptional didn't take invalid type
+- When we have an optional value IsSet() returns true, and GetValue() is meaningful. Otherwise GetValue() is not meaningful.
+
+```c++
+if (SelectedIndex.IsSet()) {
+    UE_LOG(LogTemp, Warning, TEXT("selected index %d"), SelectedIndex.GetValue());
+}
+```
+
+## Interacting btw MainMenu and ServerRow
+- Interacting each other with the other's member function.
+- MainMenu call ServerRow's FromMainMenuSet
+- ServerRow call MainMenu's FromServerRowSetIndex
+
+1. Add Text and button on WBP_ServerRow
+![img](./img/6.61ServerRow2.png)
+2. ServerRow.h and ServerRow.cpp
+```c++
+// ServerRow.cpp
+void UServerRow::DelegateForRowButton()
+{
+	MainMenu->FromServerRowSetIndex(index);
+}
+
+void UServerRow::NativeConstruct()
+{
+	RowButton->OnClicked.AddDynamic(this, &UServerRow::DelegateForRowButton);
+}
+
+void UServerRow::FromMainMenuSet(UMainMenu* Menu, uint32 i)
+{
+	MainMenu = Menu;
+	index = i;
+}
+```
+
+3. MainMenu.h and MainMenu.cpp
+```c++
+// MainMenu.h
+private: 
+	TOptional<uint32> SelectedIndex;
+
+// MainMenu.cpp
+void UMainMenu::UpdateServerList(TArray<FString> ServerNames)
+{
+	int16 index = 0;
+	for (const FString& ServerName : ServerNames) {
+		UServerRow* Row = CreateWidget<UServerRow>(this, ServerRowClass); // Call Native Constructor
+		if (ensure(Row != nullptr)) {
+			Row->ServerName->SetText(FText::FromString(ServerName));
+			Row->FromMainMenuSet(this, index++);
+			ServerList->AddChild(Row);
+		}
+	}
+}
+void UMainMenu::FromServerRowSetIndex(uint32 i)
+{
+	SelectedIndex = i;
+}
+
+void UMainMenu::DelegateForAddrButton()
+{
+	if (SelectedIndex.IsSet()) {
+		UE_LOG(LogTemp, Warning, TEXT("selected index %d"), SelectedIndex.GetValue());
+	}
+}
+```
+
+
+## connect the other with JoinSession
+1. UMainMenu.cpp
+```c++
+void UMainMenu::DelegateForAddrButton()
+{
+	if (SelectedIndex.IsSet() && MenuInterface != nullptr) {
+		MenuInterface->Join(SelectedIndex.GetValue());
+	}
+}
+```
+
+2. GameInstance.cpp
+```c++
+void UPuzzleGameInstance::Join(uint32 i)
+{
+    SessionInterface->JoinSession(0, FName(), SessionSearch->SearchResults[i]);
+} 
+
+void UPuzzleGameInstance::Init()
+{
+    SessionInterface->OnJoinSessionCompleteDelegates.AddUObject(this, &UPuzzleGameInstance::OnJoinSessionComplete);
+}
+
+void UPuzzleGameInstance::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
+{
+    FString Address;
+    if (!SessionInterface->GetResolvedConnectString(SessionName, OUT Address))
+        return;
+    APlayerController* PController = GetFirstLocalPlayerController(GWorld);
+    PController->ClientTravel(Address, ETravelType::TRAVEL_Absolute);
+}
+````
+
+SessionInterface->OnJoinSessionCompleteDelegates takes below params.
+```c++
+typedef TMulticastDelegate_TwoParams< void, FName, EOnJoinSessionCompleteResult::Type > FOnJoinSessionComplete
+```

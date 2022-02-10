@@ -35,3 +35,7 @@ void UBaseMenu::SetMenuInterface(IMenuInterface* MenuIF)
 {
 	this->MenuInterface = MenuIF;
 }
+
+void UBaseMenu::UpdateServerList(TArray<FString> ServerNames)
+{
+}

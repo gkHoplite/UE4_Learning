@@ -37,6 +37,7 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	class UButton* QuitButton;
 
+
 	UPROPERTY(meta = (BindWidget))
 	class UWidgetSwitcher* MenuSwitcher;
 		
@@ -46,7 +47,21 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	UWidget* JoinOverlay;
 
+	UPROPERTY(meta = (BindWidget))
+	class UPanelWidget* ServerList;
+
+	TSubclassOf<class UUserWidget> ServerRowClass;
+
+	UPROPERTY(meta = (BindWidget))
+	UButton* UpdateButton;
+
+public:
+	UMainMenu(const FObjectInitializer& ObjectInitializer);
+	virtual void UpdateServerList(TArray<FString> ServerNames) override;
+	void FromServerRowSetIndex(uint32 i);
+
 private: 
+	TOptional<uint32> SelectedIndex;
 
 	UFUNCTION()
 	void DelegateForHostButton();
@@ -69,12 +84,15 @@ private:
 	UFUNCTION()
 	void DelegateForQuitButton();
 
+	UFUNCTION()
+	void DelegateForUpdateButton();
+
 protected:
 
 	// UserWidget doesn't have beginplay, Initialize() 
 	// is proper member fucntion to call these kind of things.
-	virtual bool Initialize() override;
-	virtual void NativeConstruct() override;
+	virtual bool Initialize() override;       // order in first
+	virtual void NativeConstruct() override;  // order in second 
 	virtual void NativeDestruct() override;
 
 	// For Persistent UI
