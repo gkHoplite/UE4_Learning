@@ -23,8 +23,8 @@ class THIRDP_API IMenuInterface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	// Declare Pure Virtual Function
-	virtual void Host() = 0;
-	virtual void Join(uint32 i) = 0;
+	virtual void Host(const FName &SessionName) = 0;
+	virtual void Join(uint16 i) = 0;
 	virtual void Play(const FString& PathRef) = 0;
 	virtual void Update() = 0;
 };

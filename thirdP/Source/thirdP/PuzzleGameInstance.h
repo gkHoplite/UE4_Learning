@@ -28,16 +28,17 @@ public:
 	void OnFindSessionComplete(bool);
 
     void OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result);
-    void CreateSession(FName);
+    void CreateSession();
+
 
     UFUNCTION(Exec)
-    virtual void Host() override;
+    virtual void Host(const FName& SessionName) override;
 
     UFUNCTION(Exec)
     virtual void Play(const FString& PathRef) override;
 
     UFUNCTION(Exec)
-    virtual void Join(uint32 i) override;
+    virtual void Join(uint16 i) override;
 
 	UFUNCTION()
 	virtual void Update() override;
@@ -85,4 +86,6 @@ private:
 
     UPROPERTY()
     class UBaseMenu* Menu;
+
+    FName DesiredServerName;
 };

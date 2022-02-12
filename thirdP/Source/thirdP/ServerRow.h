@@ -17,6 +17,12 @@ public:
 	UPROPERTY(meta=(BindWidget))
 	class UTextBlock* ServerName;
 
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* HostUserName;
+
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* SessionPlayerState;
+
 private:
 	UPROPERTY(meta = (BindWidget))
 	class UButton* RowButton;
@@ -24,16 +30,24 @@ private:
 	UPROPERTY()
 	class UMainMenu* MainMenu;
 
+	FLinearColor UnHoveredColor;
+
 	uint32 index;
 
 private:
 	UFUNCTION()
-	void DelegateForRowButton();
+	void OnClickedRowButton();
+
+	UFUNCTION()
+	void OnHoveredRowButton();
+
+	UFUNCTION()
+	void OnUnHoveredRowButton();
 
 	virtual void NativeConstruct() override;
 public:
-	void FromMainMenuSet(class UMainMenu* Menu, uint32 i);
+	void FromMainMenuSet(class UMainMenu* Menu, uint16 i);
 
-
-
+	// MainMenu Call this when change the Selected Row.
+	void SwapColorForClick(bool isNew);
 };

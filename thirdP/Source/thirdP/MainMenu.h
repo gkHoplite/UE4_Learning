@@ -6,7 +6,6 @@
 #include "BaseMenu.h" // Replace Blueprint/Widget to this
 #include "MainMenu.generated.h"  // Use be include at last
 
-
 /**
  * 
  */
@@ -32,11 +31,10 @@ private:
 	class UButton* AddrButton;
 
 	UPROPERTY(meta = (BindWidget))
-	class UButton* CancelButton;
+	class UButton* CancelButtonJoin;
 
 	UPROPERTY(meta = (BindWidget))
 	class UButton* QuitButton;
-
 
 	UPROPERTY(meta = (BindWidget))
 	class UWidgetSwitcher* MenuSwitcher;
@@ -55,10 +53,21 @@ private:
 	UPROPERTY(meta = (BindWidget))
 	UButton* UpdateButton;
 
+	UPROPERTY(meta = (BindWidget))
+	class UButton* CancelButtonHost;
+
+	UPROPERTY(meta = (BindWidget))
+	class UButton* HostMenuButton;
+
+	UPROPERTY(meta = (BindWidget))
+	class UEditableTextBox* HostingName;
+
 public:
 	UMainMenu(const FObjectInitializer& ObjectInitializer);
-	virtual void UpdateServerList(TArray<FString> ServerNames) override;
-	void FromServerRowSetIndex(uint32 i);
+	//virtual void UpdateServerList(TArray<FServerData> ServerNames) override;
+	void UpdateServerList(TArray<FServerData> ServerNames);
+
+	void FromServerRowSetIndex(uint16 i);
 
 private: 
 	TOptional<uint32> SelectedIndex;
@@ -76,7 +85,7 @@ private:
 	void DelegateForAddrButton();
 
 	UFUNCTION()
-	void DelegateForCancelButton();
+	void DelegateForCancelJoinButton();
 
 	UFUNCTION()
 	void DelegateForExitButton();
@@ -86,6 +95,12 @@ private:
 
 	UFUNCTION()
 	void DelegateForUpdateButton();
+
+	UFUNCTION()
+	void DelegateForCancelHostButton();
+
+	UFUNCTION()
+	void DelegateForHostMenuButton();
 
 protected:
 

@@ -4,19 +4,46 @@
 #include "ServerRow.h"
 #include "MainMenu.h"
 #include <Components/Button.h>
+#include <Components/TextBlock.h>
 
-void UServerRow::DelegateForRowButton()
+void UServerRow::OnClickedRowButton()
 {
 	MainMenu->FromServerRowSetIndex(index);
 }
 
-void UServerRow::NativeConstruct()
+void UServerRow::OnHoveredRowButton()
 {
-	RowButton->OnClicked.AddDynamic(this, &UServerRow::DelegateForRowButton);
+	ServerName->SetColorAndOpacity(FLinearColor::Gray);
 }
 
-void UServerRow::FromMainMenuSet(UMainMenu* Menu, uint32 i)
+void UServerRow::OnUnHoveredRowButton()
+{
+	ServerName->SetColorAndOpacity(UnHoveredColor);
+}
+
+void UServerRow::NativeConstruct()
+{
+	RowButton->OnClicked.AddDynamic(this, &UServerRow::OnClickedRowButton);
+	RowButton->OnHovered.AddDynamic(this, &UServerRow::OnHoveredRowButton);
+	RowButton->OnUnhovered.AddDynamic(this, &UServerRow::OnUnHoveredRowButton);
+
+	UnHoveredColor = FLinearColor::White;
+}
+
+void UServerRow::FromMainMenuSet(UMainMenu* Menu, uint16 i)
 {
 	MainMenu = Menu;
 	index = i;
+}
+
+void UServerRow::SwapColorForClick(bool isNew)
+{
+	if (isNew) {
+		//ServerName->SetColorAndOpacity(FLinearColor::Black);
+		UnHoveredColor = FLinearColor::Black;
+	}
+	else {
+		ServerName->SetColorAndOpacity(FLinearColor::White);
+		UnHoveredColor = FLinearColor::White;
+	}
 }

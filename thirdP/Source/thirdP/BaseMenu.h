@@ -6,6 +6,17 @@
 #include "Blueprint/UserWidget.h"
 #include "BaseMenu.generated.h"
 
+USTRUCT()
+struct FServerData {
+	GENERATED_BODY()
+
+	uint16 CurPlayers;
+	uint16 MaxPlayers;
+	uint32 Ping;
+	FString ServerName;
+	FString HostUserName;
+};
+
 /**
  * 
  */
@@ -21,5 +32,5 @@ protected:
 public:
 	void SetMenuInterface(IMenuInterface* MenuIF);
 
-	virtual void UpdateServerList(TArray<FString> ServerNames);
+	virtual void UpdateServerList(TArray<FServerData> ServerNames);
 };

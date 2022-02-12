@@ -6,7 +6,6 @@
 #include <Components/WidgetSwitcher.h>
 #include <Components/EditableTextBox.h>
 #include "PuzzleGameInstance.h"
-//#include "MenuInterface.h"
 #include "ServerRow.h"
 #include <Components/TextBlock.h>
 
@@ -23,26 +22,40 @@ UMainMenu::UMainMenu(const FObjectInitializer& ObjectInitializer)// :Super(Objec
 	}
 }
 
-void UMainMenu::UpdateServerList(TArray<FString> ServerNames)
+void UMainMenu::UpdateServerList(TArray<FServerData> ServerDatas)
 {
 	if (GetWorld()->GetGameViewport() == nullptr || ServerRowClass == nullptr) { return; }
 	
 	ServerList->ClearChildren();
 
-	int16 index = 0;
-	for (const FString& ServerName : ServerNames) {
+	uint16 index = 0;
+	for (const FServerData& ServerData: ServerDatas) {
 		UServerRow* Row = CreateWidget<UServerRow>(this, ServerRowClass); // Call Native Constructor
 		if (ensure(Row != nullptr)) {
-			Row->ServerName->SetText(FText::FromString(ServerName));
+			Row->ServerName->SetText(FText::FromString(ServerData.ServerName));
+			Row->HostUserName->SetText(FText::FromString(ServerData.HostUserName));
+			FString SessionPlayerState = FString::Printf(TEXT("%d/%d"), ServerData.CurPlayers, ServerData.MaxPlayers);
+			Row->SessionPlayerState->SetText(FText::FromString(SessionPlayerState));
+
 			Row->FromMainMenuSet(this, index++);
 			ServerList->AddChild(Row);
 		}
 	}
 }
 
-void UMainMenu::FromServerRowSetIndex(uint32 i)
+void UMainMenu::FromServerRowSetIndex(uint16 i)
 {
+	/* Turn Old Button's Color to normal */
+	if (SelectedIndex.IsSet()) {
+		auto* Before = Cast<UServerRow>(ServerList->GetChildAt(SelectedIndex.GetValue()));
+		if (Before != nullptr) { Before->SwapColorForClick(false); }
+	}
+
 	SelectedIndex = i;
+	
+	/* Turn Old Button's Color to Special */
+	auto* After = Cast<UServerRow>(ServerList->GetChildAt(i));
+	if (After != nullptr) { After->SwapColorForClick(true); }
 }
 
 void UMainMenu::DelegateForHostButton()
@@ -52,15 +65,15 @@ void UMainMenu::DelegateForHostButton()
 	//UE_LOG(LogTemp, Warning, TEXT("Instance add %x"), GameInstance);
 
 	if (ensure(MenuInterface != nullptr)) {
-		MenuInterface->Host();
+		FName HostingNameStr =  FName(*HostingName->Text.ToString());
+		MenuInterface->Host(HostingNameStr);
 	}
 }
 
 void UMainMenu::DelegateForJoinButton()
 {
-	//MenuSwitcher->SetActiveWidgetIndex(1);
+	//MenuSwitcher->SetActiveWidgetIndex(2);
 	MenuSwitcher->SetActiveWidget(JoinOverlay);
-
 }
 
 void UMainMenu::DelegateForExtraButton()
@@ -78,7 +91,7 @@ void UMainMenu::DelegateForAddrButton()
 	}
 }
 
-void UMainMenu::DelegateForCancelButton()
+void UMainMenu::DelegateForCancelJoinButton()
 {
 	MenuSwitcher->SetActiveWidgetIndex(0);
 }
@@ -106,6 +119,16 @@ void UMainMenu::DelegateForUpdateButton()
 	MenuInterface->Update();
 }
 
+void UMainMenu::DelegateForCancelHostButton()
+{
+	MenuSwitcher->SetActiveWidgetIndex(0);
+}
+
+void UMainMenu::DelegateForHostMenuButton()
+{
+	MenuSwitcher->SetActiveWidgetIndex(1);
+}
+
 bool UMainMenu::Initialize()
 {
 	UE_LOG(LogTemp, Warning, TEXT(__FUNCTION__));
@@ -125,10 +148,13 @@ void UMainMenu::NativeConstruct()
 	ExitButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForExitButton);
 
 	AddrButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForAddrButton);
-	CancelButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForCancelButton);
+	CancelButtonJoin->OnClicked.AddDynamic(this, &UMainMenu::DelegateForCancelJoinButton);
 	QuitButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForQuitButton);
 	
 	UpdateButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForUpdateButton);
+	
+	CancelButtonHost->OnClicked.AddDynamic(this, &UMainMenu::DelegateForCancelHostButton);
+	HostMenuButton->OnClicked.AddDynamic(this, &UMainMenu::DelegateForHostMenuButton);
 }
 
 void UMainMenu::NativeDestruct()

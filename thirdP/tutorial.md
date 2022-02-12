@@ -1,3 +1,9 @@
+### Tips for Formatting
+```c++
+FName Example = TEXT("compatible");
+```
+
+
 # 1. Hosting and Joining
 # Git merge #
     git fetch /path/to/project-a master
@@ -939,4 +945,278 @@ SessionSearch->QuerySettings.Set(SEARCH_KEYWORDS, FString("MyUniqueKeyword"), EO
 https://community.gamedev.tv/t/join-game-directly-or-via-invite/191615
 
 
+
+### How to Use Windows SandBox
+SetUp Windows Sandbox
+
+https://www.windowscentral.com/how-use-windows-sandbox-windows-10-may-2019-update
+
+How to dividing GPU Resource
 https://community.gamedev.tv/t/testing-solo-with-windows-sandbox/161684
+
+
+## 18 Row Selection In Lists ##
++ Update text colour on hover.
++ Update all rows when `Selected`.
++ Select colors for `Hovered` and `Selected`.
+
+```c++
+// {project.Build.cs}
+PublicDependencyModuleNames.AddRange(new string[] { "SlateCore" });
+```
+## Higihlighting Selecting Row! and Hovering Row!
+Each ServerRow Can't Control Which one is Selected. So MainMenu Control it.
+```c++
+void UServerRow::OnHoveredRowButton()
+{
+	ServerName->SetColorAndOpacity(FLinearColor::Gray);
+}
+
+void UServerRow::OnUnHoveredRowButton()
+{
+	ServerName->SetColorAndOpacity(UnHoveredColor);
+}
+
+void UServerRow::NativeConstruct()
+{
+	RowButton->OnUnhovered.AddDynamic(this, &UServerRow::OnUnHoveredRowButton);
+	UnHoveredColor = FLinearColor::White;
+}
+
+void UServerRow::SwapColorForClick(bool isNew)
+{
+	if (isNew) {
+		//ServerName->SetColorAndOpacity(FLinearColor::Black);
+		UnHoveredColor = FLinearColor::Black;
+	}
+	else {
+		ServerName->SetColorAndOpacity(FLinearColor::White);
+		UnHoveredColor = FLinearColor::White;
+	}
+}
+
+void UMainMenu::FromServerRowSetIndex(uint16 i)
+{
+	/* Turn Old Button's Color to normal */
+	if (SelectedIndex.IsSet()) {
+		auto* Before = Cast<UServerRow>(ServerList->GetChildAt(SelectedIndex.GetValue()));
+		if (Before != nullptr) { Before->SwapColorForClick(false); }
+	}
+
+	SelectedIndex = i;
+	
+	/* Turn Old Button's Color to Special */
+	auto* After = Cast<UServerRow>(ServerList->GetChildAt(i));
+	if (After != nullptr) { After->SwapColorForClick(true); }
+}
+```
+
+## 19 Displaying Search Result Properties ##
++ Disabling Steam for testing.
++ Creating a struct.
++ Populating the struct.
++ Updating the UI. 
+
+
+### Disabling Steam for testing.
+Testing Network with Steams takes Much effort. Turn the project either possible to test on local.
+```c++
+void UPuzzleGameInstance::CreateSession(FName SessionName)
+{
+    FName OSSName = IOnlineSubsystem::Get()->GetSubsystemName();
+    if (OSSName == "Steam"){
+        FOnlineSessionSettings SessionSettings;
+        SessionSettings.bIsLANMatch = false; // Use Steam OSS
+        SessionSettings.NumPublicConnections = 3;
+        SessionSettings.bShouldAdvertise = true; // Set visible in querying
+        SessionSettings.bUsesPresence = true; // For Steam OSS
+        SessionSettings.bUseLobbiesIfAvailable = true; // For Steam OSS
+        SessionInterface->CreateSession(int32(0), SessionName, SessionSettings);
+    }
+    else if (OSSName == "Null") {
+        FOnlineSessionSettings SessionSettings;
+        SessionSettings.bIsLANMatch = true;
+        SessionSettings.NumPublicConnections = 3;
+        SessionSettings.bShouldAdvertise = true; // Set visible in querying
+        SessionSettings.bUsesPresence = true;
+        SessionInterface->CreateSession(int32(0), SessionName, SessionSettings);
+    }
+}
+```
+## + Creating a struct. ##
+```c++
+// BaseMenu.h
+USTRUCT()
+struct FServerData {
+	GENERATED_BODY()
+	uint16 CurPlayers;
+	uint16 MaxPlayers;
+    uint32 Ping;
+	FString ServerName;
+	FString HostUserName;
+};
+
+class THIRDP_API UBaseMenu : public UUserWidget{
+    virtual void UpdateServerList(TArray<FServerData> ServerNames);
+}
+
+// MainMenu.cpp
+void UMainMenu::UpdateServerList(TArray<FServerData> ServerDatas)
+{
+	uint16 index = 0;
+	for (const FServerData& ServerData: ServerDatas) {
+		UServerRow* Row = CreateWidget<UServerRow>(this, ServerRowClass); // Call Native Constructor
+		if (ensure(Row != nullptr)) {
+			Row->ServerName->SetText(FText::FromString(ServerData.ServerName));
+			Row->HostUserName->SetText(FText::FromString(ServerData.HostUserName));
+			FString SessionPlayerState = FString::Printf(TEXT("%d/%d"), ServerData.CurPlayers, ServerData.MaxPlayers);
+			Row->SessionPlayerState->SetText(FText::FromString(SessionPlayerState));
+
+			Row->FromMainMenuSet(this, index++);
+			ServerList->AddChild(Row);
+		}
+	}
+}
+
+// UPuzzleGameInstance.cpp
+void UPuzzleGameInstance::OnFindSessionComplete(bool Success)
+{
+    TArray<FServerData> ServerDatas;
+    for (const auto &SearchResult : SessionSearch->SearchResults) {
+        FServerData Data;
+        Data.ServerName = SearchResult.GetSessionIdStr();
+        Data.HostUserName = SearchResult.Session.OwningUserName;
+        Data.MaxPlayers = SearchResult.Session.SessionSettings.NumPublicConnections;
+        // Only works Properly on Steam. Not on NullSystem
+        Data.CurPlayers = Data.MaxPlayers - SearchResult.Session.NumOpenPublicConnections;
+        Data.Ping = SearchResult.PingInMs;
+
+        ServerDatas.Add(Data);
+    }
+    Menu->UpdateServerList(ServerDatas);
+}
+```
+
+
+## 20 Debugging The Search Results ##
+
++ Disabling Steam fully.
++ Getting the available connections.
++ Padding the text properly.
+
+### + Padding the text properly.
+Set Clipping to Bounds. It cut the context located out of box.
+![img](./img/6.68AdjustingUIBox.png)
+
+## 21 Custom Session Settings ##
++ How to set custom settings.
++ How to retrieve custom settings.
++ Setting the server name.
+
+## Prohibing test on Editor
+- Don't Test Network Session On Editor. Before Exiting Editor Networking Session still exsist there.
+### + How to set custom settings.
+Below Code is Restricted format for Custom Settings
+```c++
+/** Explicit instantiation of supported types to Set template above */
+#if !UE_BUILD_DOCS
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const int32& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const float& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const uint64& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const double& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const FString& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const bool& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+template ONLINESUBSYSTEM_API void FOnlineSessionSettings::Set(FName Key, const TArray<uint8>& Value, EOnlineDataAdvertisementType::Type InType, int32 InID);
+#endif
+```
+
+### + How to retrieve custom settings.
+```c++
+const static FName SESSION_IDENTIFIER = TEXT("MYSERVER");
+const static FName SERVER_NAME_KEY = TEXT("TEST Server");
+
+void UPuzzleGameInstance::Host(const FName& ServerName)
+{
+    DesiredServerName = ServerName;
+    if(...){
+        /* Hosting Session is already exist */
+    }
+    else{
+        CreateSession();
+    }
+}
+
+void UPuzzleGameInstance::CreateSession()
+{
+    FOnlineSessionSettings SessionSettings;
+    /*...SessionSettings Details...*/
+
+    /* Custom Settings for Server and Session */
+    SessionSettings.Set(SERVER_NAME_KEY, DesiredServerName.ToString(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
+
+    SessionInterface->CreateSession(int32(0), SESSION_IDENTIFIER, SessionSettings);
+}
+```
+
+### + Setting the server name.
+```c++
+// disperse info on UI
+void UPuzzleGameInstance::OnFindSessionComplete(bool Success)
+{
+    TArray<FServerData> ServerDatas;
+    for (const FOnlineSessionSearchResult &SearchResult : SessionSearch->SearchResults) {
+        FServerData Data;
+        /* Set Struct FServerData's member variable */
+
+        FString FindServerName;
+        // Search Certan ServerName
+        if (SearchResult.Session.SessionSettings.Get(SERVER_NAME_KEY, FindServerName))
+        {
+            Data.ServerName = FindServerName;
+        }
+        else
+        {
+            Data.ServerName = "Could not find name.";
+        }
+
+        ServerDatas.Add(Data);
+    }
+    Menu->UpdateServerList(ServerDatas);
+}
+```
+
+## Quiz 10
+we can only have one Steam instance per computer we need another computer.
+
+
+## After Hosting Can't Join
+- After Destroying Session, Delegates binded to it always create new session.
+1. If clicking Updates Button After Hosting, It travel to client server 
+2. Set ServerName to null and DestoySession
+3. Binding Delegates DestroySessionComplete braching two case.
+    1. if Hosting call this, DesiredServerName is set
+    2. if Update call this, DesiredServerName is None
+4. After bracnhing followed by 3, choose whether recreate session    
+
+```c++
+void UPuzzleGameInstance::Update()
+{
+    if (SessionInterface.IsValid() && !DesiredServerName.IsNone()) {
+        FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(SESSION_IDENTIFIER);
+        if (ExistingSession != nullptr) {
+            GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
+            DesiredServerName = FName(); // Destroying and Don't recreate it On OnDestroyCompletion
+
+            GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, TEXT("Destroy Session click again."));
+            SessionInterface->DestroySession(SESSION_IDENTIFIER); // Some platform didn't delete it instantly.
+            return;
+        }
+    }
+}
+void UPuzzleGameInstance::OnDestroySessionComplete(FName SessionNameIn, bool Success)
+{
+    if (Success && !DesiredServerName.IsNone()) {
+        CreateSession();
+    }
+}
+```
