@@ -8,10 +8,11 @@
 
 #include <OnlineSubsystem.h>
 #include <OnlineSessionSettings.h>
-
+#include "UObject/UnrealNames.h"
 #define OUT
 
-const static FName SESSION_IDENTIFIER = TEXT("MYSERVER");
+// substitute below to NAME_GameSession macro matching engine version
+//const static FName SESSION_IDENTIFIER = TEXT("GameSession");
 const static FName SERVER_NAME_KEY = TEXT("TEST Server");
 
 
@@ -40,7 +41,7 @@ void UPuzzleGameInstance::Init()
     /* Set Travel Error Handling */
     GEngine->OnNetworkFailure().AddUObject(this, &UPuzzleGameInstance::HandleNetworkFailure);
     GEngine->OnTravelFailure().AddUObject(this, &UPuzzleGameInstance::HandleTravelFaliure);
-    isHandledTrvaling = false;
+    //isHandledTrvaling = false;
 
     /* Set OnlineSubsystem */
     IOnlineSubsystem* OSS = IOnlineSubsystem::Get();
@@ -60,23 +61,32 @@ void UPuzzleGameInstance::Init()
 
 void UPuzzleGameInstance::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)
 {
-    UE_LOG(LogTemp, Warning, TEXT("Damn NetworkError %s"), *ErrorString);
-    if (isHandledTrvaling == false) {
-        GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
-        //GetFirstLocalPlayerController()->ClientReturnToMainMenu(ErrorString);
+    UE_LOG(LogTemp, Warning, TEXT("NetworkFailure Damn NetworkError %s"), *ErrorString);
+    //if (isHandledTrvaling == false) {
+    //    GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
+    //    //GetFirstLocalPlayerController()->ClientReturnToMainMenu(ErrorString);
 
-        isHandledTrvaling = true;
-    }
+    //    isHandledTrvaling = true;
+    //}
+    GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
+    
+    if (!ensureMsgf(SessionInterface.IsValid(), TEXT("Session interface is invalid!"))) return;
+    const auto* ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
+
+    // OnDestroySessionComplete didn't recreate session when DesiredSN is None
+    DesiredServerName = FName();
+    if (ExistingSession) SessionInterface->DestroySession(NAME_GameSession);
 }
 
 void UPuzzleGameInstance::HandleTravelFaliure(UWorld* World, ETravelFailure::Type FailureType, const FString& ErrorString)
 {
-    UE_LOG(LogTemp, Warning, TEXT("Damn TravelError %s"), *ErrorString);
-    if (isHandledTrvaling == false) {
-        GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
-        //GetFirstLocalPlayerController()->ClientReturnToMainMenu(ErrorString);
-        isHandledTrvaling = true;
-    }
+    UE_LOG(LogTemp, Warning, TEXT("TravelFaliure Damn TravelError %s"), *ErrorString);
+    //if (isHandledTrvaling == false) {
+    //    GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
+    //    //GetFirstLocalPlayerController()->ClientReturnToMainMenu(ErrorString);
+    //    isHandledTrvaling = true;
+    //}
+    GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
 }
 
 void UPuzzleGameInstance::OnCreateSessionComplete(FName SessionNameIn, bool Success)
@@ -110,7 +120,10 @@ void UPuzzleGameInstance::OnCreateSessionComplete(FName SessionNameIn, bool Succ
 
 void UPuzzleGameInstance::OnDestroySessionComplete(FName SessionNameIn, bool Success)
 {
-    if (Success && !DesiredServerName.IsNone()) {
+    // If DesiredServerName is None, Don't recreate it.
+    if (DesiredServerName.IsNone()) { return; }
+
+    if (Success) {
         CreateSession();
     }
 }
@@ -191,14 +204,14 @@ void UPuzzleGameInstance::CreateSession()
         else if (OSSName == NULL_SUBSYSTEM) {
             SessionSettings.bIsLANMatch = true;
         }
-        SessionSettings.bAllowJoinInProgress = true;
+        //SessionSettings.bAllowJoinInProgress = true;
         SessionSettings.bUsesPresence = true;
         SessionSettings.bShouldAdvertise = true; // Set visible in querying
-        SessionSettings.NumPublicConnections = 3;
+        SessionSettings.NumPublicConnections = 4;
 
         SessionSettings.Set(SERVER_NAME_KEY, DesiredServerName.ToString(), EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
 
-        SessionInterface->CreateSession(int32(0), SESSION_IDENTIFIER, SessionSettings);
+        SessionInterface->CreateSession(int32(0), NAME_GameSession, SessionSettings);
     }
 }
 
@@ -206,10 +219,10 @@ void UPuzzleGameInstance::Host(const FName& ServerName)
 {
     DesiredServerName = ServerName;
     if (SessionInterface.IsValid()) {
-        FNamedOnlineSession *ExistingSession = SessionInterface->GetNamedSession(SESSION_IDENTIFIER);
+        FNamedOnlineSession *ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
         if (ExistingSession != nullptr) {
             GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, TEXT("Create Session after Destroy it"));
-            SessionInterface->DestroySession(SESSION_IDENTIFIER); // Some platform didn't delete it instantly.
+            SessionInterface->DestroySession(NAME_GameSession); // Some platform didn't delete it instantly.
         }
         else {
             CreateSession();
@@ -237,19 +250,19 @@ void UPuzzleGameInstance::Join(uint16 i)
     if (Menu != nullptr) {
         CloseMenu();
     }
-    SessionInterface->JoinSession(0, SESSION_IDENTIFIER, SessionSearch->SearchResults[i]);
+    SessionInterface->JoinSession(0, NAME_GameSession, SessionSearch->SearchResults[i]);
 } 
 
 void UPuzzleGameInstance::Update()
 {
     if (SessionInterface.IsValid() && !DesiredServerName.IsNone()) {
-        FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(SESSION_IDENTIFIER);
+        FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession);
         if (ExistingSession != nullptr) {
             GetFirstLocalPlayerController()->ClientTravel("/Game/ThirdPersonCPP/Maps/Lobby", ETravelType::TRAVEL_Absolute);
             DesiredServerName = FName(); // Destroying and Don't recreate it On OnDestroyCompletion
 
             GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, TEXT("Destroy Session click again."));
-            SessionInterface->DestroySession(SESSION_IDENTIFIER); // Some platform didn't delete it instantly.
+            SessionInterface->DestroySession(NAME_GameSession); // Some platform didn't delete it instantly.
             return;
         }
     }
@@ -259,7 +272,7 @@ void UPuzzleGameInstance::Update()
 		UE_LOG(LogTemp, Warning, TEXT("Sharedptr for finding Session is valid"));
 
 		//SessionSearch->bIsLanQuery = true;
-        SessionSearch->MaxSearchResults = 100;
+        SessionSearch->MaxSearchResults = 1000;
 		SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals); // With API
 		SessionInterface->FindSessions(0, SessionSearch.ToSharedRef()); // Add Session to SessionSearch 
 	}
@@ -333,6 +346,14 @@ void UPuzzleGameInstance::LetmeKnow()
 bool UPuzzleGameInstance::isMenuNull()
 {
     return (Menu==nullptr);
+}
+
+void UPuzzleGameInstance::StartSession()
+{
+    if (SessionInterface.IsValid()) {
+        GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Cyan, TEXT(__FUNCTION__));
+        SessionInterface->StartSession(NAME_GameSession);
+    }
 }
 
 void UPuzzleGameInstance::OnStart()

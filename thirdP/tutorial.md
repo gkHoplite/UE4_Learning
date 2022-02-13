@@ -1220,3 +1220,162 @@ void UPuzzleGameInstance::OnDestroySessionComplete(FName SessionNameIn, bool Suc
     }
 }
 ```
+
+## 23 GameMode And Multiplayer ##
+
++ Joining into the lobby.
++ Creating a GameMode override.
++ Handling `PostLogin`.
++ Handle `Logout` and count players.
+
+### What Is GameMode
+- The GameMode is created and destroyed with every level load.
+    - The GameInstance is create when the game starts and is destroyed when it ends.
+- __GameMode Only Existing in the Server.__
+- Control Login, Logout for Session
+
+### Implementing Lobby Mechanism on GameMode instead of GameInstance
+- Use PostLogin Delegates for Counting Players. If reacheing required count, start the game.
+
+![img](./img/7.71SetLobbyGameMode.png)
+
+- Use GameModeBase Instead of GameMode. cuting down unnecessary thing in of GameMode.
+
+```c++
+class AthirdPGameMode : public AGameModeBase
+class ALobbyGameMode : public AthirdPGameMode
+```
+
+### Create Level Reference Instead Of Hardcoding Path
+GameInstance use Travel to hard coded path. 
+- Save Reference To TAssetPtr and Travel to here. 
+- This requires you to create a BP of your game instance and assign the BP instead of the class in your project settings.
+```c++
+// header
+UPROPERTY(EditAnywhere)
+TAssetPtr<UWorld> LobbyLevel;
+
+// cpp
+if (UWorld* const world = GetWorld())
+{
+    world->ServerTravel(LobbyLevel.GetLongPackageName().Append("?listen"));
+}
+```
+
+## Seamless Travel
+|Seamless Travel||NonSeamless Travel|
+|--|--|--|
+|Move to Transition Map and Move to Actual Map|VS|Server Disconnecting every Client. Do Reconnect and Load New Map|
+- Disconnecting takes time for completing
+
+```c++
+bUseSeamlessTravel = true;
+GWorld->ServerTravel("/Game/ThirdPersonCPP/Maps/ThirdPersonExampleMap?listen");
+```
+
+- Set Default Transition Map with UI
+
+![img](./img/7.72SetTransitionMap.png)
+
+
+
+## Debugging with Unreal Engine
+Debugging and Find Why Null Subsyststem Can't Count Player in the session
+
+1. Attaching Debugger to UE4
+![img](./img/7.73Debugging.png)
+
+2. Digging with NumPublicConnections
+- failing to find session that has name certified cause this problem.
+```c++
+bool FOnlineSessionNull::RegisterPlayers(FName SessionName, const TArray< FUniqueNetIdRef >& Players, bool bWasInvited)
+	FNamedOnlineSession* Session = GetNamedSession(SessionName);
+	if (Session)
+	{
+        // Counting Player 
+	}
+	else
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("No game present to join for session (%s)"), *SessionName.ToString());
+	}
+```
+3. follow the callstack that create SessionName
+4. NullSubsystem Create Session Name by default "GameSession"
+5. Replace Every SESSION_IDENTIFIER to Name_GameSession defined by engine macros
+
+
+## 26 Starting A Session ##
++ Adding a session start timeout.
++ Starting the session.
+
+
+### + Adding a session start timeout.
+https://docs.unrealengine.com/4.27/en-US/ProgrammingAndScripting/ProgrammingWithCPP/UnrealArchitecture/Timers/
+
+### + Starting the session.
+- Blocking Login After Start Session
+```c++
+void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
+{
+	Super::PostLogin(NewPlayer);
+	// After Joining a player more than two, waiting 5.f seconds for executing delegate
+	UE_LOG(LogTemp, Warning, TEXT("Session has %d players"), GetNumPlayers());
+	
+	if (GetNumPlayers() >= 2) {
+		GetWorldTimerManager().SetTimer(GameStartTimer, this, &ALobbyGameMode::StartGame, 5.f);
+	}
+}
+
+void ALobbyGameMode::StartGame()
+{
+	auto GameInstance = Cast<UPuzzleGameInstance>(GetGameInstance());
+	GameInstance->StartSession();
+
+	bUseSeamlessTravel = true;
+	GWorld->ServerTravel("/Game/ThirdPersonCPP/Maps/ThirdPersonExampleMap?listen");
+}
+
+
+void UPuzzleGameInstance::CreateSession()
+{
+    FOnlineSessionSettings SessionSettings;
+    SessionSettings.bAllowJoinInProgress = true;
+}
+
+void UPuzzleGameInstance::StartSession()
+{
+    SessionInterface->StartSession(NAME_GameSession);
+}
+```
+
+
+
+## Displayer Timer to all player
+- The GameInstance and GameMode aren't replicated so wouldn't be good candidates. Better is the GameState as all clients have a copy.
+
+- RPC is helpful for this problem
+https://docs.unrealengine.com/4.27/en-US/InteractiveExperiences/Networking/Actors/RPCs/
+
+- GameMode and GameState
+https://docs.unrealengine.com/4.27/en-US/InteractiveExperiences/Framework/GameMode/
+
+
+
+
+## Implementing Lobby Background Sound on PlayerController
+https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8197740#questions/10870578
+
+## Debugging with VSCode
+https://community.gamedev.tv/t/how-to-deal-with-optimized-engine-variables/182815/8
+
+## How To Set up Lan-Multiplayer for Windows and Android
+https://blog.squareys.de/ue4-android-windows-lan-multiplayer/
+
+## AWS and Docker for Dedicated Server
+https://medium.com/swlh/building-and-hosting-an-unreal-engine-dedicated-server-with-aws-and-docker-75317780c567
+
+## VPS on Windows
+https://unreal.fluiddynamics.eu/multiplayer-on-windows-vps/
+
+## Switching Characters
+https://community.gamedev.tv/t/my-menu-system/80892/4

@@ -172,17 +172,16 @@ void UMainMenu::AddToScreen(ULocalPlayer* Player, int32 ZOrder)
 	//FWorldDelegates::LevelRemovedFromWorld.RemoveAll(this);
 }
 
-//void UMainMenu::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld)
-//{
-//	Super::OnLevelRemovedFromWorld(InLevel, InWorld);
-//
-//	UWorld* World = GetWorld();
-//	if (!World) { return; }
-//	APlayerController* PlayerController = World->GetFirstPlayerController();
-//	if (!PlayerController) { return; }
-//
-//	FInputModeGameOnly InputModeData;
-//
-//	PlayerController->SetInputMode(InputModeData);
-//	PlayerController->bShowMouseCursor = false;
-//}
+void UMainMenu::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld)
+{
+	Super::OnLevelRemovedFromWorld(InLevel, InWorld);
+
+	UWorld* World = GetWorld();
+	if (!World) { return; }
+	APlayerController* PlayerController = World->GetFirstPlayerController();
+	if (!PlayerController) { return; }
+
+	FInputModeGameOnly InputModeData;
+	PlayerController->SetInputMode(InputModeData);
+	PlayerController->bShowMouseCursor = false;
+}

@@ -112,4 +112,6 @@ protected:
 
 	// For Persistent UI
 	virtual void AddToScreen(ULocalPlayer* Player, int32 ZOrder) override;
+
+	virtual void OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWorld) override;
 };

@@ -61,6 +61,8 @@ public:
 
     bool isMenuNull();
 
+    void StartSession();
+
 protected:
     // Error Handling for unvalid URL
     UFUNCTION()
@@ -76,7 +78,7 @@ private:
     /* Finding Session will be listed up in this*/
     TSharedPtr<class FOnlineSessionSearch> SessionSearch;
 
-    bool isHandledTrvaling;
+    //bool isHandledTrvaling;
 
     TSubclassOf<class UUserWidget> MainMenu;
 
