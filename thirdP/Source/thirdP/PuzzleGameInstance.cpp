@@ -15,7 +15,6 @@
 //const static FName SESSION_IDENTIFIER = TEXT("GameSession");
 const static FName SERVER_NAME_KEY = TEXT("TEST Server");
 
-
 UPuzzleGameInstance::UPuzzleGameInstance(const FObjectInitializer & ObjectInitializer){
     UE_LOG(LogTemp, Warning, TEXT("%s Constructor"), TEXT(__FUNCTION__));
     ConstructorHelpers::FClassFinder<UUserWidget>MenuBPClass(TEXT("/Game/UI/WBP_MainMenu")); // Only in Constructor
@@ -57,6 +56,7 @@ void UPuzzleGameInstance::Init()
             SessionInterface->OnJoinSessionCompleteDelegates.AddUObject(this, &UPuzzleGameInstance::OnJoinSessionComplete);
         }
     }
+    
 }
 
 void UPuzzleGameInstance::HandleNetworkFailure(UWorld* World, UNetDriver* NetDriver, ENetworkFailure::Type FailureType, const FString& ErrorString)
@@ -326,13 +326,7 @@ void UPuzzleGameInstance::InGameOpenMenu()
     }
 }
 
-void UPuzzleGameInstance::InGameCloseMenu()
-{
-    if (Menu != nullptr) {
-        Menu->RemoveFromViewport(); // Call NativeDestructor
-        Menu = nullptr;
-    }
-}
+
 
 void UPuzzleGameInstance::LetmeKnow()
 {

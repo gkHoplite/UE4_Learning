@@ -89,7 +89,7 @@ void AthirdPCharacter::ToggleMenu()
 		PGameInstance->InGameOpenMenu();
 	}
 	else {
-		PGameInstance->InGameCloseMenu();
+		PGameInstance->CloseMenu();
 	}
 }
 

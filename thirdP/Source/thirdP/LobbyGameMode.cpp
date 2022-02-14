@@ -4,6 +4,8 @@
 #include "LobbyGameMode.h"
 #include "PuzzleGameInstance.h"
 
+#include "thirdPPlayerController.h"
+
 void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 {
 	Super::PostLogin(NewPlayer);
@@ -18,6 +20,11 @@ void ALobbyGameMode::PostLogin(APlayerController* NewPlayer)
 void ALobbyGameMode::Logout(AController* Exiting)
 {
 	Super::Logout(Exiting);
+}
+
+ALobbyGameMode::ALobbyGameMode() : Super()
+{
+	PlayerControllerClass = AthirdPPlayerController::StaticClass();
 }
 
 void ALobbyGameMode::StartGame()

@@ -2,6 +2,7 @@
 
 #include "thirdPGameMode.h"
 #include "thirdPCharacter.h"
+#include "thirdPPlayerController.h"
 #include "UObject/ConstructorHelpers.h"
 
 AthirdPGameMode::AthirdPGameMode()
@@ -11,5 +12,6 @@ AthirdPGameMode::AthirdPGameMode()
 	if (PlayerPawnBPClass.Class != NULL)
 	{
 		DefaultPawnClass = PlayerPawnBPClass.Class;
+		PlayerControllerClass = AthirdPPlayerController::StaticClass();
 	}
 }

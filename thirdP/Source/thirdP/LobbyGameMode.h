@@ -18,9 +18,9 @@ public:
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
 private:
+	ALobbyGameMode();
 	void StartGame();
 
 private:
 	FTimerHandle GameStartTimer;
-
 };

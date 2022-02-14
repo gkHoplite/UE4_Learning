@@ -54,9 +54,6 @@ public:
     void InGameOpenMenu();
 
     UFUNCTION(Exec)
-    void InGameCloseMenu();
-
-    UFUNCTION(Exec)
     void LetmeKnow();
 
     bool isMenuNull();
