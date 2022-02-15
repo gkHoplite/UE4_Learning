@@ -28,19 +28,38 @@ public:
 
 protected:
 	void MoveForward(float Value);
+	void MoveRight(float Value);
+	FVector GetAirResistance();
+	FVector GetRollingResistance();
+
+public:
 
 private:
-	FVector Velocity;
-	float Throttle;
-
 	// The mass of the car (kg).
 	UPROPERTY(EditAnywhere)
-	float Mass = 1000.f;
+		float Mass = 1000.f;
 
 	// The force applied to the car when the throttle is fully down (N).
 	UPROPERTY(EditAnywhere)
-	float MaxDrivingForce = 10000.f;
+		float MaxDrivingForce = 10000.f;
 
-public:
+	// Minimum radius of the car turning circle at full lock (m).
+	UPROPERTY(EditAnywhere)
+		float TurningRadius = 10.f;
+
+	UPROPERTY(EditAnywhere)
+		float DragCoefficient = 16.f;
+
+	UPROPERTY(EditAnywhere)
+		float RollingResistanceCoefficient = 0.015f; // From wikipedia
+
+	
+	float TransUnit = 100.f;
+
+	FVector Velocity;
+	float Throttle;
+	float SteeringThrow;
+
+
 
 };

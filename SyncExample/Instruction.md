@@ -73,26 +73,135 @@ void AKart::Tick(float DeltaTime)
 
 # 3 Blocking Movement Without Physics #
 ## Setting up collision volumes.
+![img](./img/81.SetCollision.png)
+
 ## Sweeping with `AddActorWorldOffset`.
-## Resetting velocity on collision.
-## Refactoring the `Tick` function.
+1. Turn On bSweep for Working Collision
+2. Check blocking with FHitResult.
+
+```c++
+void AKart::Tick(float DeltaTime)
+{
+	FHitResult HitResult;
+	/*@param bSweep  Whether we sweep to the destination location, triggering overlaps along the way and stopping short of 
+	 *				 the target if blocked by something.Only the root component is sweptand checked for blocking collision, 
+	 *				 child components move without sweeping.If collision is off, this has no effect. */
+	AddActorWorldOffset(Translation, true, &HitResult);
+	if (HitResult.IsValidBlockingHit()) {
+		Velocity = FVector(0.f);
+	}
+}
+```
+
 # 4 Rotations With Quaternions #
 ## Angle axis rotations with FQuat.
+![img](img\82.AngleAxisRotation.png)
+
 ## Adding rotations actors.
+1. Set Rotation Angle Degree
+2. Get FQuat Rotation with Upwards Direction and transform it into radians. 
+3. Applying Rotation info to Actor
+```c++
+void AKart::Tick(float DeltaTime)
+{
+	// Rotation Angle is Degree , RotationDelta takes Radians
+	float RotationAngle = MaxRotatingForce * DeltaTime * SteeringThrow;
+	FQuat RotationDelta(GetActorUpVector(), FMath::DegreesToRadians(RotationAngle));
+
+	Velocity = RotationDelta.RotateVector(Velocity);
+	AddActorWorldRotation(RotationDelta);
+}
+```
+
 ## Rotating our velocity.
 # 5 Simulating Air Resistance #
 ## Understanding air resistance.
-## Getting the "speed".
+![img](img\83.AirResistanceFormula.gif)
+
 ## Calculating force due to air resistance.
+- AirResistance Affecting Force relating to Movement
+```c++
+FVector AKart::GetAirResistance()
+{
+	//Velocity.SizeSquared() == FMath::Square(Velocity.Size());
+	FVector AirResistance = Velocity.GetSafeNormal() * Velocity.SizeSquared() * DragCoefficient;
+	return -1 * AirResistance;
+}
+
+void AKart::Tick(float DeltaTime)
+{
+	FVector Force = GetActorForwardVector() * Throttle * MaxDrivingForce;
+	
+	/* Modified */
+	Force += GetAirResistance();
+
+	FVector Acceleration = Force / Mass;
+}
+```
 # 6 Simulating Rolling Resistance #
 ## What is rolling resistance?
-## Finding the gravity in Unreal.
-## Implementing rolling resistance.
-## Example rolling resistance coeffients. 
+
+![img](img/84.RollingResistance.png)
+- Rolling Resistance = RR Coefficient * Normal Force
+- [Explanation About Rolling Resistance](https://www.youtube.com/watch?v=_S2lyaMgBQ8)
+
+
+## Implementing Rolling Resistance
+1. Finding the gravity in Unreal.
+2. Implementing rolling resistance.
+3. Example rolling resistance coeffients. 
+```c++
+FVector AKart::GetRollingResistance()
+{
+	// GetGravityZ = -980.f, default unit is centimeter
+	float ReactingGravityForce = -1 * GetWorld()->GetGravityZ() / TransUnit;
+
+	float NormalForce = Mass * ReactingGravityForce;
+	
+	return -1 * Velocity.GetSafeNormal() * RollingResistanceCoefficient * NormalForce;
+}
+
+void AKart::Tick(float DeltaTime)
+{
+	FVector Force = GetActorForwardVector() * Throttle * MaxDrivingForce;
+	Force += GetAirResistance();
+
+	/* Add Rolling Resistance */
+	Force += GetRollingResistance();
+
+	FVector Acceleration = Force / Mass;
+}
+```
 # 7 Steering And Turning Circles #
-## Why we get turning circles.
-## Calculating our rotation geometry.
+## Why we get turning circles Calculating our rotation geometry.
+![img](img\85.CarRotation.png)
+
+
+# Usage for Dot Product
+![img](./img/85.Consine.png)
+- Dot Product is useful, when calculating Cosines Theta btw two vector
+- By using this Calculating Degrees or radians btw two Vector
+
+
 ## Correcting steering behaviour.
+```c++
+void AKart::Tick(float DeltaTime)
+{
+/* Rotation */
+	// Rotation Angle is Degree , RotationDelta takes Radians
+	float DeltaLocation = FVector::DotProduct(GetActorForwardVector(), Velocity) * DeltaTime;
+	float RotationAngle = DeltaLocation / TurningRadius * SteeringThrow;
+	FQuat RotationDelta(GetActorUpVector(), RotationAngle);
+
+	Velocity = RotationDelta.RotateVector(Velocity);
+	AddActorWorldRotation(RotationDelta);
+}
+```
+- [Physics for Advanced Racing Game, like Drafting](https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8274656#questions/12231310)
+
+- [How to implement exact Physics?](https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8274656#questions/10831926)
+
+
 # 8 Server Functions & Cheat Protection #
 ## How to change state from the client.
 ## Introduction to RPC server functions.
