@@ -4,6 +4,7 @@
 #include "Kart.h"
 #include <Components/InputComponent.h>
 #include "Math/Vector.h"
+#include <DrawDebugHelpers.h>
 
 // Sets default values
 AKart::AKart()
@@ -62,9 +63,16 @@ void AKart::Tick(float DeltaTime)
 		float RotationAngle = DeltaLocation / TurningRadius * SteeringThrow;
 		FQuat RotationDelta(GetActorUpVector(), RotationAngle);
 
+		// Arc = Theta * radius
+		// Delta Location = Delta Rotation  * radius
+		// Delta Rotation = Delta Location / Radius
 		Velocity = RotationDelta.RotateVector(Velocity);
 		AddActorWorldRotation(RotationDelta);
 	}
+
+	/* Display Actor Role */
+	FString ActorRoleName = UEnum::GetValueAsString(GetLocalRole());
+	DrawDebugString(GWorld, FVector(0.f), ActorRoleName, this, FColor::White, 0);
 }
 
 // Called to bind functionality to input
@@ -75,14 +83,54 @@ void AKart::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 	InputComponent->BindAxis(FName("MoveRight"), this, &AKart::MoveRight);
 }
 
+FString GetEnumText(ENetRole Role)
+{
+	switch (Role)
+	{
+	case ROLE_None:
+		return "None";
+	case ROLE_SimulatedProxy:
+		return "SimulatedProxy";
+	case ROLE_AutonomousProxy:
+		return "AutonomousProxy";
+	case ROLE_Authority:
+		return "Authority";
+	default:
+		return "ERROR";
+	}
+}
+
 void AKart::MoveForward(float Value)
 {
 	Throttle = Value;
+	ServerMoveForward(Value);
 }
 
 void AKart::MoveRight(float Value)
 {
 	SteeringThrow = Value;
+	ServerMoveRight(Value);
+}
+
+
+void AKart::ServerMoveForward_Implementation(float Value)
+{
+	Throttle = Value;
+}
+
+bool AKart::ServerMoveForward_Validate(float Value)
+{
+	return FMath::Abs(Value)<=1.0;
+}
+
+void AKart::ServerMoveRight_Implementation(float Value)
+{
+	SteeringThrow = Value;
+}
+
+bool AKart::ServerMoveRight_Validate(float Value)
+{
+	return FMath::Abs(Value) <= 1.0;
 }
 
 FVector AKart::GetAirResistance()
@@ -96,7 +144,7 @@ FVector AKart::GetRollingResistance()
 {
 	// GetGravityZ = -980.f, default unit is centimeter
 	float ReactingGravityForce = -1 * GetWorld()->GetGravityZ() / TransUnit;
-
+	// Rolling Resistance vary with Mass!!
 	float NormalForce = Mass * ReactingGravityForce;
 	
 	return -1 * Velocity.GetSafeNormal() * RollingResistanceCoefficient * NormalForce;

@@ -10,7 +10,7 @@ class ASyncExampleGameMode : public AGameModeBase
 
 public:
 	ASyncExampleGameMode();
+
+public:
+	AActor* ChoosePlayerStart_Implementation(AController* Player);
 };
-
-
-
