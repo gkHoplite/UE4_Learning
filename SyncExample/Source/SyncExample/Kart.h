@@ -6,6 +6,39 @@
 #include "GameFramework/Pawn.h"
 #include "Kart.generated.h"
 
+
+USTRUCT()
+struct FKartMoveFactor
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	float Throttle;
+	UPROPERTY()
+	float SteeringThrow;
+
+	UPROPERTY()
+	float DeltaTime;
+	UPROPERTY()
+	float Time;
+};
+
+
+USTRUCT()
+struct FKartState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FTransform Tranform;
+
+	UPROPERTY()
+	FVector Velocity;
+
+	UPROPERTY()
+	FKartMoveFactor LastMove;
+};
+
 UCLASS()
 class SYNCEXAMPLE_API AKart : public APawn
 {
@@ -61,10 +94,22 @@ private:
 	UPROPERTY(EditAnywhere)
 	float RollingResistanceCoefficient = 0.015f; // From wikipedia
 
-	
 	float TransUnit = 100.f;
 
-	FVector Velocity;
+
+	UPROPERTY(replicated)
 	float Throttle;
+	UPROPERTY(replicated)
 	float SteeringThrow;
+	UPROPERTY(replicated)
+	FVector Velocity;
+	
+	/* Replicated Using VS Replcated
+		Replicated Transform isn't used in Client's side code.
+		For Adjusting transform call SetActorTransform.Only Callback could do this */
+	UPROPERTY(replicatedUsing=replicatedUsing_ReplicatedTransform)
+	FTransform ReplicatedTransform;
+
+	UFUNCTION()
+	void replicatedUsing_ReplicatedTransform();
 };

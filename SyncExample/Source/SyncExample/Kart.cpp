@@ -5,18 +5,23 @@
 #include <Components/InputComponent.h>
 #include "Math/Vector.h"
 #include <DrawDebugHelpers.h>
+#include <Net/UnrealNetwork.h>
 
 // Sets default values
 AKart::AKart()
 {
  	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	bReplicates = true;
 }
 
 // Called when the game starts or when spawned
 void AKart::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	//the number of times per second to replicate
+	NetUpdateFrequency = 0.5;
 }
 
 // Called every frame
@@ -70,9 +75,31 @@ void AKart::Tick(float DeltaTime)
 		AddActorWorldRotation(RotationDelta);
 	}
 
+	/* Replicating On Autonomus Proxy */
+	if (HasAuthority()) {
+		ReplicatedTransform = GetActorTransform();
+	}
+
 	/* Display Actor Role */
 	FString ActorRoleName = UEnum::GetValueAsString(GetLocalRole());
 	DrawDebugString(GWorld, FVector(0.f), ActorRoleName, this, FColor::White, 0);
+}
+
+void AKart::replicatedUsing_ReplicatedTransform()
+{
+	GEngine->AddOnScreenDebugMessage(INDEX_NONE, 5, FColor::White, FString(TEXT("Updating Replication")), false);
+	UE_LOG(LogTemp, Warning, TEXT("Updating Replication"));
+
+	SetActorTransform(ReplicatedTransform);
+}
+
+void AKart::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AKart, ReplicatedTransform);
+	DOREPLIFETIME(AKart, Velocity);
+	DOREPLIFETIME(AKart, Throttle);
+	DOREPLIFETIME(AKart, SteeringThrow);
 }
 
 // Called to bind functionality to input
@@ -148,6 +175,4 @@ FVector AKart::GetRollingResistance()
 	float NormalForce = Mass * ReactingGravityForce;
 	
 	return -1 * Velocity.GetSafeNormal() * RollingResistanceCoefficient * NormalForce;
-}
-
-
+} 

@@ -329,7 +329,7 @@ AActor* ASyncExampleGameMode::ChoosePlayerStart_Implementation(AController* Play
 ## What Makes Sync Errors on Transform?
 ![img](img\88.WhatCauseSimulationError.png)
 - If Set Collision Preset On BP_Car to BlockAllDynamic, then desynchronization occured easily. If Set this BlockAll, It's hard to find desynchronization
-- Because Autonomous has Collider but the other machine didn't simulate it's collider. So hitting Sth makes Desynchronization so easily.
+- hitting the square box on the road. simulation works differetly on server and client. So hitting Sth makes Desynchronization so easily.
 - All the Transform calculated with DeltaTime, Because DeltaTime is Set by frame on each computer makes desynchronization!
 
 ## Investigate approaches to eliminating them.
@@ -339,35 +339,230 @@ AActor* ASyncExampleGameMode::ChoosePlayerStart_Implementation(AController* Play
 	- Diverse factor like Networks condition could ruin this.
 
 # 11 Replicating Variables From The Server #
-## Overview of property replication.
 ## Replicating the actor position.
-## Setting and reading the property.
-## Replicating the actor rotation.
+[Unreal Document For replicating](https://docs.unrealengine.com/4.27/en-US/InteractiveExperiences/Networking/Actors/Properties/)
+
+```c++
+#include <Net/UnrealNetwork.h>
+
+UCLASS()
+class SYNCEXAMPLE_API AKart : public APawn
+{
+	UPROPERTY(replicated)
+	FVector ReplicatedLocation;
+	UPROPERTY(replicated)
+	FRotator ReplicatedRotation;
+};
+
+AKart::AKart()
+{
+	bReplicates = true;
+}
+
+void AKart::Tick(float DeltaTime)
+{
+	if (HasAuthority()) {
+		ReplicatedLocation = GetActorLocation();
+		ReplicatedRotation = GetActorRotation();
+	}
+	else {
+		SetActorLocation(ReplicatedLocation);
+		SetActorRotation(ReplicatedRotation);
+	}
+
+}
+
+void AKart::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AKart, ReplicatedLocation);
+	DOREPLIFETIME(AKart, ReplicatedRotation);
+}
+```
+- GetLifeTimeReplicatedProps automatically has declaration on header with UPROPERTY(replicated). if declaring it again on header make declare twice.
+- Macro DEREPLIFETIME is defined already in Net/UnrealNetwork.h
+
 # 12 Triggering Code On Replication #
 ## Deep dive on property replication.
-## Setting the network update interval.
-## Notify on replicate.
-## Simulate between updates.
+- Property Updates only happend when Property is changing
+- No change didn't updates replication to clients.
+
+## The Benefit using replicatedUsing instead of replicated
+- Replicated only updates it's property
+- ReplicatedUsing trigger it's callback when value is changing
+- In this Case Replicated Location isn't used in Client's side code. For Adjusting transform call SetActorTransform. Only Callback could do this
+
+## Implementing ReplicatedUsing
+1. Set duration of replicating
+```c++
+void AKart::BeginPlay()
+{   // the number of times per second to replicate
+	NetUpdateFrequency = 1; 
+}
+```
+
+2. Set your Property use callback.
+	- Specifier replicatedUsing call delegate function
+	- So delcare delegate function with UFUNCTION
+```c++
+class SYNCEXAMPLE_API AKart : public APawn
+{
+	UPROPERTY(replicatedUsing=replicatedUsing_ReplicatedTransform)
+	FTransform ReplicatedTransform;
+
+	UFUNCTION()
+	void replicatedUsing_ReplicatedTransform();
+};
+```
+
+3. Set ActorTransform is So powerful than Add Transfrom. Updates this on Callback function. detach it from tick.
+
+```c++
+void AKart::Tick(float DeltaTime)
+{
+	if (HasAuthority()) {
+		ReplicatedTransform = GetActorTransform();
+	}
+}
+```
+
+4. Every Seconds when Server Updates it's replicatres, Clients Update transform send by server.
+```c++
+void AKart::replicatedUsing_ReplicatedTransform()
+{
+	GEngine->AddOnScreenDebugMessage(INDEX_NONE, 5, FColor::White, FString(TEXT("Updating Replication")), false);
+	UE_LOG(LogTemp, Warning, TEXT("Updating Replication"));
+
+	SetActorTransform(ReplicatedTransform);
+}
+```
+
 # 13 Smooth Simulated Proxies #
-## Replicating velocity.
-## Why is movement jerky?
-## Replicating control input to SimulatedProxy.
+- In clients, Server's Actor Move with glitching because of updating every Seconds. Let's Solve this Problem.
+- Updating Only Transform every seconds makes movements aweakward. Updating all the other property makes Pawn probably work in code with addWorldtransform()
+
+```c++
+class SYNCEXAMPLE_API AKart : public APawn
+{
+	UPROPERTY(replicated)
+	float Throttle;
+	UPROPERTY(replicated)
+	float SteeringThrow;
+	UPROPERTY(replicated)
+	FVector Velocity;
+}
+
+void AKart::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AKart, ReplicatedTransform);
+	DOREPLIFETIME(AKart, Velocity);
+	DOREPLIFETIME(AKart, Throttle);
+	DOREPLIFETIME(AKart, SteeringThrow);
+}
+```
+
 # 14 Simulating Lag And Packet Loss #
+## How to Interact with other machine
+![img](./img/92.HowToInteract.png)
 ## What is lag?
-## Simulating lag and packet loss.
+![img](./img/92.Lag.png)
+
 ## Why does lag cause glitching?
+![img](./img/92.LagGlitching.png)
+
+## Simulating lag and packet loss.
+- [Finding Network-based Exploits](https://www.unrealengine.com/en-US/blog/finding-network-based-exploits?sessionInvalidated=true)
+
+### CMD
+- Need Prefix like "NetEmulation.PktLag 500"
+
+|Setting|Description|
+|-|-|
+|PktLag|Delays the sending of a packet by the amount of time specified in milliseconds|
+|PktLagVariance|Provides some randomness to the amount of time a packet is delayed, +/- the amount specified in milliseconds|
+|PktLoss|Specifies a percentage chance of an outbound packet being discarded to simulate packet loss|
+|PktDup|Specifies a percentage chance to send a duplicate packet|
+|PktOrder|Sends packets out of order when enabled (1 = enabled, 0 = disabled)|
+
+- If Above Cmd Command didn't work, then editing __DefaultEngine.ini__ and add below settings.
+```text
+[PacketSimulationSettings]
+PktLag=500
+PktLagVariance=0
+PktLoss=0
+PktOrder=0
+PktDup=0
+```
+
+## Advanced UDP VS TCP
+- There are 7 layers of network ISO/OSI model, and what can we tell about this model without explaining it, is that normally, all Internet communication (e-mails, websites, file transfers etc.) are performed through TCP (Transfer Control Protocol). The main difference between TCP and UDP is that, the TCP Packet delivery is guaranteed, and when there is extreme case where it can't be delivered (queue overflow for example, that you mentioned), the sender MUST be notified about a fact this packet has been dropped and the sender MUST resend it again. And these checks are performed on every layer on the ISO/OSI model. While with UDP packets, there are no checks performed on any of the six bottom network layers and there is no notification about packet drops. The only layer, where such checks can be (but don't have to be) performed is the top network layer, which is our application (in our case, this is our game).
+
 # 15 Replay Autonomous Moves #
 ## Why do we reset when accelerating?
-## Keeping AutonomousProxy ahead of the Server.
-## What information needs to be sent to the server.
+![img](img\93.AccelationLag.png)
+
+0. keyboard take only 1 and 0 makes Acceleration become stiff
+1. Clients simulate ahead from Server's do due to the Lag
+2. Server Updates it's simultation that far behinds the clients
+3. Clients being Updated that situation was already done before
+4. above things are keep going on and make glitching
+
+## Keeping AutonomousProxy ahead of the Server. 
+![img](img\93.HowToSolveAccLag.png)
+1. 
+- Server Check the time with location, if that is matched in client at the past then keep going
+- 1. Server Check the time with location, it that is not valid on client at the exact time, Updates Clients location to Certain position.
+- 2. Then Move the whole curve simulate from there.
+
 ## Compare our different simulation approaches.
+|version|v1|v2|v3
+|-|-|-|-|
+problem|Not Smooth| Lag|
+Send to Server| Throw
+Btw Update|Nothing | Simulate
+receive|Transform, Velocity| |+ ServerTime
+On Receipt|Overwirte Local| |Replay Controls since Servertime
 # 16 Planning Client-Side Prediction #
 ## Pseudocode for client prediction.
 ## Adding structs for synchronisation.
+```c++
+USTRUCT()
+struct FGoKartMove
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	float Throttle;
+	UPROPERTY()
+	float SteeringThrow;
+
+	UPROPERTY()
+	float DeltaTime;
+	UPROPERTY()
+	float Time;
+};
+
+
+USTRUCT()
+struct FGoKartState
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FTransform Tranform;
+
+	UPROPERTY()
+	FVector Velocity;
+
+	UPROPERTY()
+	FGoKartMove LastMove;
+};
+```
 # 17 Replicating Structs #
 ## What do we have already?
 ## Replicating state via a struct.
-## Sending the `Move` struct via RPC.
+## Sending the `Move` struct via RPC .
 # 18 Simulating A Move #
 ## The `SimulateMove` signature.
 ## Updating the canonical state.
