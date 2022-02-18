@@ -212,6 +212,7 @@ void AKart::Tick(float DeltaTime)
 ## How to change state from the client.
 - Request Server to change state with RPC
 - RPC : Remote Procedure Calls
+- Clients call Server_Move and Server_Move_Implementation is called on the server. It's an RPC (remote procedure call).
 
 ## Introduction to RPC server functions.
 1. Add UFUNCTION Specifier
@@ -494,6 +495,8 @@ PktLoss=0
 PktOrder=0
 PktDup=0
 ```
+### Settings
+![img](./img/92.LagSimulation.png)
 
 ## Advanced UDP VS TCP
 - There are 7 layers of network ISO/OSI model, and what can we tell about this model without explaining it, is that normally, all Internet communication (e-mails, websites, file transfers etc.) are performed through TCP (Transfer Control Protocol). The main difference between TCP and UDP is that, the TCP Packet delivery is guaranteed, and when there is extreme case where it can't be delivered (queue overflow for example, that you mentioned), the sender MUST be notified about a fact this packet has been dropped and the sender MUST resend it again. And these checks are performed on every layer on the ISO/OSI model. While with UDP packets, there are no checks performed on any of the six bottom network layers and there is no notification about packet drops. The only layer, where such checks can be (but don't have to be) performed is the top network layer, which is our application (in our case, this is our game).
@@ -560,44 +563,183 @@ struct FGoKartState
 };
 ```
 # 17 Replicating Structs #
-## What do we have already?
 ## Replicating state via a struct.
 ## Sending the `Move` struct via RPC .
+![img](./img/95.Refactoring.png)
+## Code Refactoring
+https://github.com/UnrealMultiplayer/4_Krazy_Karts/commit/001c1cb53601fa63e6e8b486fabbdf2511f9f792
+
+
 # 18 Simulating A Move #
 ## The `SimulateMove` signature.
 ## Updating the canonical state.
 ## Implement `SimulateMove`.
+
+
 # 19 Unacknowledged Move Queue #
 ## `TArray` for the Move queue.
 ## Tidying the move creation code.
 ## Printing the queue length.
 ## Removing acknowledged moves.
+
+[DO not use Iteration on TArray. is So Expensive](https://github.com/UnrealMultiplayer/4_Krazy_Karts/commit/7e207c1496a5b0b4ef2f609283fa37c7fc53ec43)
+[Alternative way to implementing ClearState](https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8608176#questions/14008576)
+
+[Server Time VS Local Time](https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8608176#questions/11238847)
+
 # 20 Simulating Unacknowledged Moves #
 ## Simulate all moves.
 ## Testing for smoothness.
 ## How can we still make it glitch?
+
+## Simulating unacknowledged moves, does not make the client to simulate twice?
+- simulating a move already in the Tick, but lets suppose that we have some lag, you make a series of moves, when you make the last move you add it to the list of unacknowledged moves, and send the move to the server, at the same time, due to lag, you receive the Server State of a X move of that series you have made, so ClearAcknowledgedMoves comes to play all the old moves are deleted, and then you Simulate the new list of moves which includes all the moves that you have made after the X move, the problem is that you have already simulated those moves in the Tick so you are now duplicating the simulation.
+- I think this is probably true. However, this will only happen when you get the server update with should be far less than every tick. You could write some logic to prevent this but it's probably not worth it.
+
+
+## How Array Of FKarMoveFactor works?
+1. So we get a new ServerState, which to the clients seems like it’s from the past. Snapping back to this ‘past point in time’ causes glitching. So instead of only snapping back, we snap back and then replay all the moves we remember doing since that past point in time.
+
+2. If there are no disagreements between the client and server (other than just timing), replaying all our moves since that point in time should give us the exact same end result as what we had been calculating one tick at a time before the update. Same result = no glitching = win.
+
+3. For this to work, we must only replay moves we did after that point in time, not before. That’s what ClearAcknowledgedMoves() is doing. We know that any move with a timestamp less than the ServerState.LastMove’s timestamp is already factored into the ServerState.Transform/Velocity, so this method is just removing those older “stale” moves from our list.
+
+4. We need the SetActorTransform(ServerState.Transform) because that’s the starting point we’re replaying our moves from. It already has most of our past moves factoed into it we just need to add on the moves that the server didn’t know about yet.
+
+# Where All this Problem came from?
+- let the server have the authority over a local client's pawn, introduces so many problems, the best paradigm is the client to be the arbiter of its own pawn, to send state out to all other clients via the server.
+- It reduces effective lag, removes the problem of your own pawn glitching and avoids having to do any prediction and resimulation of your own pawn entirely. Resimulation in a real game would likely be prohibitively expensive if done correctly. As for other client's pawns glitching, you can smooth all that out with adaptive linear and angular velocity correcting location and rotation over time by modifying the physics sub step for each pawn to implement that. And doing that, avoids problems with collision response  spasms that often happen if you call SetActorTransform directly.
+- I've worked on quite a few racing games, a lot of them featuring multiplayer. Every time, players wanted client-side authority over their vehicle because they just did not want the server glitching them
+
+- __Answer:__  It makes it far to easy to cheat. The server is the impartial arbiter of the rules of the game,
+
 # 21 Fixing SimulatedProxy Prediction #
 ## Ensuring the Server simulates once.
 ## Local prediction on the client.
 ## Making smoother predictions.
+
+### __Dedicated Server__
+Client 1 Character
+- Role = Authority
+- RemoteRole = Autonomous Proxy
+
+Client 2 Character
+- Role = Authority
+- RemoteRole = Autonomous Proxy
+### __Client 1__
+Client 1 Character
+- Role = Autonomous Proxy
+- RemoteRole = Authority
+
+Client 2 Character
+- Role = Simulated Proxy
+- RemoteRole = Authority
+### __Client 2__
+Client 1 Character
+- Role = Simulated Proxy
+- RemoteRole = Authority
+
+Client 2 Character
+- Role =Autonomous Proxy
+- RemoteRole = Authority
+
+
+### ?
+https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8668950#questions/11210195
+
 # 22 Refactoring Into Components #
 ## Red-Green-Refactor process.
+1. Clear Code: Code work and clean -> need Implmenting for requirements 
+2. Red Code : After some Implementation code, Didn't work
+3. Green Code: Code Work but so Messy -> Need Clearing Code(Code Smell)  
+
 ## How to spot your "code smells".
+[What is Code Smell](https://refactoring.guru/refactoring/smells)
 ## Identifying a suitable refactor.
 ## Planning our refactor.
+Extracting Components from class so Creating New class
+![img](./img/101.RefactoringPlan.png)
+
 # 23 Extracting A Movement Component #
 ## Create and name the component.
 ## Move member declarations across.
 ## Move function implementations.
 ## Fix build errors.
+
+### Move UStruct On MovementComponents
+- It needs for implementation and MovementComponents belong to Actor.
+- Movements Components can't include Actor.
+- Move this to Parts(MovementComponents) and share with it.
+```c++
+USTRUCT()
+struct FKartMoveFactor
+{
+	GENERATED_BODY()
+
+		UPROPERTY()
+		float Throttle;
+	UPROPERTY()
+		float SteeringThrow;
+
+	UPROPERTY()
+		float DeltaTime;
+	UPROPERTY()
+		float Time;
+};
+```
+
+### Why Forward Delcaration didn't work?
+- forward declaration only helps if you are using the type in a pointer or reference. If you are passing by value or declaring a variable C++ needs to know more about the type to know how much memory it will need to allocate for it.
+
+### Reload BP
+![img](./img/102.ReloadBPAsset.png)
+
 # 24 Extracting A Replication Component #
 ## Creating the component.
 ## Enable replication.
+```c++
+UKartReplicationComponent::UKartReplicationComponent()
+{
+		SetIsReplicatedByDefault(true);
+}
+void UKartReplicationComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	MovementComponent = GetOwner()->FindComponentByClass<UKartMovementComponent>();
+}
+```
 ## Move member declarations across.
 ## Move function implementations.
 ## Fix build errors.
+
 # 25 Decoupling Movement & Replication #
 ## What happens if we disable the replicator?
+![img](./img/104.ProblemInDependency.png)
+- Without ReplicationComponent, MovementComponent Can't Simulate Movements. Because Simulating implementation only flamed by ReplicationComponent
+```c++
+void UKartReplicationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	switch (GetOwner()->GetLocalRole())
+	{
+		FKartMoveFactor Move;
+	case ENetRole::ROLE_AutonomousProxy:
+		Move = MovementComponent->CreateMove(DeltaTime);
+		MovementComponent->SimulateMove(Move);
+		UnacknowledgedMoves.Add(Move);
+		ServerSendMove(Move);
+		break;
+	case ENetRole::ROLE_Authority:
+		if (!Cast<APawn>(GetOwner())->IsLocallyControlled()) { break; }
+
+		Move = MovementComponent->CreateMove(DeltaTime);
+		ServerSendMove(Move);
+		break;
+	case ROLE_SimulatedProxy:
+		MovementComponent->SimulateMove(ServerState.LastMove);
+		break;
+	}
+}
+```
 ## Allow the Movement Component to tick.
 ## Getting the information to replicate.
 # 26 Linear Interpolation For Position #

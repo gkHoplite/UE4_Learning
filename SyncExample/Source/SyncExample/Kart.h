@@ -4,40 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "KartMovementComponent.h"
+#include "KartReplicationComponent.h"
+
 #include "Kart.generated.h"
 
 
-USTRUCT()
-struct FKartMoveFactor
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	float Throttle;
-	UPROPERTY()
-	float SteeringThrow;
-
-	UPROPERTY()
-	float DeltaTime;
-	UPROPERTY()
-	float Time;
-};
-
-
-USTRUCT()
-struct FKartState
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FTransform Tranform;
-
-	UPROPERTY()
-	FVector Velocity;
-
-	UPROPERTY()
-	FKartMoveFactor LastMove;
-};
 
 UCLASS()
 class SYNCEXAMPLE_API AKart : public APawn
@@ -59,57 +31,17 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-protected:
+private:
+
 	// Executed on Client
 	void MoveForward(float Value);
 	void MoveRight(float Value);
 
-	// Executed on Server
-	UFUNCTION(Server, Reliable, WithValidation)
-	void ServerMoveForward(float Value);
-	UFUNCTION(Server, Reliable, WithValidation)
-	void ServerMoveRight(float Value);
-
-	FVector GetAirResistance();
-	FVector GetRollingResistance();
-
-public:
-
 private:
-	// The mass of the car (kg).
-	UPROPERTY(EditAnywhere)
-	float Mass = 1000.f;
+		
+	UPROPERTY(VisibleAnywhere)
+	UKartMovementComponent* MovementComponent;
 
-	// The force applied to the car when the throttle is fully down (N).
-	UPROPERTY(EditAnywhere)
-	float MaxDrivingForce = 10000.f;
-
-	// Minimum radius of the car turning circle at full lock (m).
-	UPROPERTY(EditAnywhere)
-	float TurningRadius = 10.f;
-
-	UPROPERTY(EditAnywhere)
-	float DragCoefficient = 16.f;
-
-	UPROPERTY(EditAnywhere)
-	float RollingResistanceCoefficient = 0.015f; // From wikipedia
-
-	float TransUnit = 100.f;
-
-
-	UPROPERTY(replicated)
-	float Throttle;
-	UPROPERTY(replicated)
-	float SteeringThrow;
-	UPROPERTY(replicated)
-	FVector Velocity;
-	
-	/* Replicated Using VS Replcated
-		Replicated Transform isn't used in Client's side code.
-		For Adjusting transform call SetActorTransform.Only Callback could do this */
-	UPROPERTY(replicatedUsing=replicatedUsing_ReplicatedTransform)
-	FTransform ReplicatedTransform;
-
-	UFUNCTION()
-	void replicatedUsing_ReplicatedTransform();
+	UPROPERTY(VisibleAnywhere)
+	UKartReplicationComponent* ReplicationComponent;
 };
