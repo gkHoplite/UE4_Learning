@@ -713,6 +713,7 @@ void UKartReplicationComponent::BeginPlay()
 ## Fix build errors.
 
 # 25 Decoupling Movement & Replication #
+https://github.com/UnrealMultiplayer/4_Krazy_Karts/commit/c956090a7c2b518559ba50226cce9b003b12b8d2
 ## What happens if we disable the replicator?
 ![img](./img/104.ProblemInDependency.png)
 - Without ReplicationComponent, MovementComponent Can't Simulate Movements. Because Simulating implementation only flamed by ReplicationComponent
@@ -742,28 +743,150 @@ void UKartReplicationComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 ```
 ## Allow the Movement Component to tick.
 ## Getting the information to replicate.
+
+
+### RPC and Replication
+- There are basically two ways communication happens: RPC (from client to server) and replication (from server to all clients)
+- UPROPERTY as Replicated or as ReplicatedUsing will tell the engine to automatically update it from Server to all Client
+
+### Why replication delegates multiplly call simulation?
+- __Question:__ replicatedUsing_ServerState takes loops through all the unacknowledged moves and calls SimulateMove() each time. all happens in the same frame. 
+- __Answer:__ Assuming everyone can run at 60fps is fine but if a player can run only at 20fps,there would be a catchup of 3 messages. Instead of one. Also, the routine that plays back the list may not run every frame. The default is every second but can be adjusted. This means it is never just one frame. 
+
+- And Not looping through all the unacknowledged moves makes it possible to miss colliding with something they should have collided with. They need to be executed in the correct order
+
+### Does Order of TickComponents btw Components Cause Erorr?
+- __Question:__ the order of TickComponent for MovementComponent and MovementReplicator matters. With this refactor, Replicator grabs the LastMove from the MovementComponent before assinging value. LastMove could have different values depending on the order of the tick functions of the two components. worst case is Replicator's tick ran first, we'd just be off by a single frame
+- __Answer:__ it wouldn't break because it would either be the move from this frame or the last.
+
+### What is Pure C++ Class?
+- pure C++ I mean one that doesn't inherit from anything. Just a class. It's the first you should consider because if it suits your needs it's the simplest.
+
 # 26 Linear Interpolation For Position #
 ## How does linear interpolation work?
+![img](./img/105.LinearInterpolation.png)
+1. Linear Interpolation Updates Server states lately
+2. if latency goes up, the time to reach to location takes longer
+3. if latency goes down, then lose some position to replicate
 ## Overview of client interpolation.
 ## Pseudocode for client interpolation.
+
+
 # 27 FMath::Lerp For Client Interpolation #
 ## Ensure movement replication is off.
+```c++
+AKart::AKart()
+{
+	SetReplicateMovement(false);
+}
+```
+
 ## Updating the time variables.
+- divide large float with small float cause serious Error on this Code
+- So Add code Gurard for protecting from that problem
+void UKartReplicationComponent::ClientTick(float DeltaTime)
+{
+	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) return;
+	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+}
+
 ## `FMath::Lerp` vs `FMath::LerpStable`.
+- Lerp didn't work well if two variable is quite big enough. so Use LerpStable.
+- avoid small number when deal with lerp function
+- LerpStable is much preferable
+
 ## Implementing the pseudocode.
+1. SimulatedProxy work behind the ServerState.
+2. So simulating this on client makes smooth
+```c++
+void UKartReplicationComponent::replicatedUsing_ServerState(){
+	switch (GetOwnerRole()){
+	case ROLE_SimulatedProxy:
+		SimulatedProxy_ServerState();
+		break;
+	}
+}
+
+void UKartReplicationComponent::SimulatedProxy_ServerState(){
+	ClientTimeBtwLastUpdate= ClientTimeSinceUpdate;
+	ClientTimeSinceUpdate = 0;
+
+	ClientStartTransform = GetOwner()->GetActorTransform();
+}
+
+void UKartReplicationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction){
+	switch (GetOwner()->GetLocalRole()){
+	case ROLE_SimulatedProxy:
+		ClientTick(DeltaTime);
+		break;
+	}
+}
+
+void UKartReplicationComponent::ClientTick(float DeltaTime){
+	ClientTimeSinceUpdate += DeltaTime;
+
+	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) return;
+
+	FVector TargetLocation = ServerState.Tranform.GetLocation();
+	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	FVector StartLocation = ClientStartTransform.GetLocation();
+
+	FVector NewLocation = FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
+	GetOwner()->SetActorLocation(NewLocation);
+}
+```
+## FPS Calculation with NetUpdateFrequency
+https://community.gamedev.tv/t/replicating-setactorlocation-smoothly-while-setreplicatingmovement-is-true/188980
+
+
 # 28 FQuat::Slerp For Rotation #
 ## `Slerp` vs `Lerp`.
+- if Two variable is FVector, that means you can consider three dot. two variable and origin.
+- you can lerp any fvector btw two variable has same lenght but different direction. that is what Sleap do
 ## Store tranform instead of location.
+
 ## Implementing `Slerp`ed location.
+```c++
+void UKartReplicationComponent::ClientTick(float DeltaTime)
+{
+	ClientTimeSinceUpdate += DeltaTime;
+
+	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) return;
+
+	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+
+	/* Location */
+	FVector TargetLocation = ServerState.Tranform.GetLocation();
+	FVector StartLocation = ClientStartTransform.GetLocation();
+	FVector NewLocation = FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
+	GetOwner()->SetActorLocation(NewLocation);
+
+	/* Rotation */
+	FQuat TargetRotation = ServerState.Tranform.GetRotation();
+	FQuat StartRotation = ClientStartTransform.GetRotation();
+	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
+	GetOwner()->SetActorRotation(NewRotation);
+}
+```
+
 # 29 Hermite Cubic Spline Interpolation #
 ## Understanding jarring movement.
 ## How velocity can help or hinder.
+![img](img\108.CubicHermiteSpline.png)
+1. Each of State has velocity but linear interpolation ignore this and move direct to target
+2. Some cubic, quadratic polynomials help this.
+3. the Hermite Cubic Spline is dominant over all.
 ## A brief overview of polynomials.
+
 ## Introducing the Hermite Cubic Spline.
+https://www.desmos.com/calculator/iexoeledct
+
 # 30 FMath::CubicInterp For Velocity #
 ## Slopes, derivatives and velocity.
 ## Using `CubicInterp` for location.
 ## Using `CubicInterpDerivative` for velocity.
+
+
 # 31 Refactoring With Structs #
 ## Assessing the existing code.
 ## Creating a plain C#### struct.

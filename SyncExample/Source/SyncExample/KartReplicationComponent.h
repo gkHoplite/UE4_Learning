@@ -52,6 +52,14 @@ private:
 
 	UFUNCTION()
 	void replicatedUsing_ServerState();
+	void AutonomousProxy_ServerState();
+	void SimulatedProxy_ServerState();
+	void ClientTick(float DeltaTime);
+
+private:
+	float ClientTimeSinceUpdate;
+	float ClientTimeBtwLastUpdate;
+	FTransform ClientStartTransform;
 
 	/* Replicated Using VS Replcated
 	Replicated Transform isn't used in Client's side code.
