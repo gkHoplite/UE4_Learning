@@ -788,6 +788,7 @@ void UKartReplicationComponent::ClientTick(float DeltaTime)
 {
 	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) return;
 	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	LerpRatio = FMath::Clamp(LerpRatio, 0.f, 1.f);
 }
 
 ## `FMath::Lerp` vs `FMath::LerpStable`.
@@ -829,6 +830,8 @@ void UKartReplicationComponent::ClientTick(float DeltaTime){
 
 	FVector TargetLocation = ServerState.Tranform.GetLocation();
 	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	LerpRatio = FMath::Clamp(LerpRatio, 0.f, 1.f);
+
 	FVector StartLocation = ClientStartTransform.GetLocation();
 
 	FVector NewLocation = FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
@@ -841,8 +844,13 @@ https://community.gamedev.tv/t/replicating-setactorlocation-smoothly-while-setre
 
 # 28 FQuat::Slerp For Rotation #
 ## `Slerp` vs `Lerp`.
-- if Two variable is FVector, that means you can consider three dot. two variable and origin.
-- you can lerp any fvector btw two variable has same lenght but different direction. that is what Sleap do
+1. In Rotation Lerp calculating with shortest path 
+	- Lerp didn't know circle is 360'. so it calculate degree via 0
+	- Slerp could calculate shortest way, considering 360'
+
+2. FVector::Slerp could do direct
+	- if Two variable is FVector, that means you can consider three dot. two variable and origin. you can lerp any fvector btw two variable has same length but different direction.
+
 ## Store tranform instead of location.
 
 ## Implementing `Slerp`ed location.
@@ -854,6 +862,7 @@ void UKartReplicationComponent::ClientTick(float DeltaTime)
 	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) return;
 
 	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	LerpRatio = FMath::Clamp(LerpRatio, 0.f, 1.f);
 
 	/* Location */
 	FVector TargetLocation = ServerState.Tranform.GetLocation();
@@ -883,22 +892,327 @@ https://www.desmos.com/calculator/iexoeledct
 
 # 30 FMath::CubicInterp For Velocity #
 ## Slopes, derivatives and velocity.
+![img](img\109.CubicHermiteLocationVelocity.png)
+1. Update Location with HermiteCubic spline graph
+2. Update Velocity with HermiteCubic spline graph's derivative
+
+![img](img\109.EquationVelocityNDerivative.png)
+1. Use this equation on calculation.
+```c++
+// On location
+Derivative = ClientStartVelocity * ClientTimeBtwLastUpdate
+
+// On Rotation
+NewVelocity = NewDerivative / ClientTimeBtwLastUpdate
+```
 ## Using `CubicInterp` for location.
 ## Using `CubicInterpDerivative` for velocity.
+```c++
+void UKartReplicationComponent::SimulatedProxy_ServerState()
+{
+	// MovementComponent Didn't simulate Simulated_Proxy
+	ClientStartVelocity = MovementComponent->GetVelocity();
+	//ClientStartVelocity = CurrentVelocity;
+}
 
+void UKartReplicationComponent::ClientTick(float DeltaTime)
+{
+	/* Location */
+	float convertToMeter = 100.f;
+	FVector StartDerivative = ClientStartVelocity * ClientTimeBtwLastUpdate * convertToMeter;   // from cm
+	FVector TargetDerivative = ServerState.Velocity * ClientTimeBtwLastUpdate * convertToMeter; // to meter
+
+	//FVector NewLocation = FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
+	FVector NewLocation = FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	GetOwner()->SetActorLocation(NewLocation);
+
+	/* Rotation */ 
+	/*		1. Velocity = Car's direction and Speed	*/
+	FVector NewDerivative = FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	// When CTBLU is quite small makes Error but fine we already check on top guard
+	// !!Error: deleting parentheses cause problem
+	FVector NewVelocity = NewDerivative / (ClientTimeBtwLastUpdate * convertToMeter);
+	
+	// MovementComponent Didn't simulate Simulated_Proxy
+	MovementComponent->SetVelocity(NewVelocity);
+	//CurrentVelocity = NewVelocity;
+}
+```
+### What Simulated Proxy is differ from Autonomous or Server?
+- Simulated Proxy update merely location and rotation that is seperate with  velocity. 
+- Autonomous and Server updates input and calculate location and rotation with velocity
 
 # 31 Refactoring With Structs #
 ## Assessing the existing code.
-## Creating a plain C#### struct.
+## Creating a plain C struct.
+1. Member Function on struct takes const keyword. because usage of this struct would be const reference.
+```c++
+// .header
+struct FHermiteCubicSpline {
+	FVector StartLocation, StartDerivative, TargetLocation, TargetDerivative;
+
+	FVector GetCubicInterpolate(float LerpRatio) const {
+		//return FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
+		return FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	}
+	FVector GetCubicInterpolateDerivative(float LerpRatio) const {
+		return FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	}
+};
+```
+
 ## Pulling out methods.
+```c++
+FHermiteCubicSpline UKartReplicationComponent::CreateSpline(){
+	FHermiteCubicSpline Spline;
+	Spline.TargetLocation = ServerState.Tranform.GetLocation();
+	Spline.StartLocation = ClientStartTransform.GetLocation();
+
+	float convertToMeter = 100.f;
+	Spline.StartDerivative = ClientStartVelocity * ClientTimeBtwLastUpdate * convertToMeter;   // from cm
+	Spline.TargetDerivative = ServerState.Velocity * ClientTimeBtwLastUpdate * convertToMeter; // to meter
+	return Spline;
+}
+
+void UKartReplicationComponent::ClientTick(float DeltaTime){
+	ClientTimeSinceUpdate += DeltaTime;
+
+	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) { return; }
+	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	LerpRatio = FMath::Clamp(LerpRatio, 0.f, 1.f);
+	
+	FHermiteCubicSpline Spline = CreateSpline();
+	InterpolateLocation(Spline, LerpRatio);
+	InterpolateVelocity(Spline, LerpRatio);
+	InterpolateRotation(LerpRatio);
+}
+
+void UKartReplicationComponent::InterpolateLocation(const FHermiteCubicSpline& Spline, float LerpRatio){
+	FVector NewLocation = Spline.GetCubicInterpolate(LerpRatio);
+	GetOwner()->SetActorLocation(NewLocation);
+}
+
+void UKartReplicationComponent::InterpolateVelocity(const FHermiteCubicSpline& Spline, float LerpRatio){
+	float convertToMeter = 100.f;
+	FVector NewDerivative = Spline.GetCubicInterpolateDerivative(LerpRatio);
+	FVector NewVelocity = NewDerivative / (ClientTimeBtwLastUpdate * convertToMeter);
+
+	// MovementComponent Didn't simulate Simulated_Proxy
+	MovementComponent->SetVelocity(NewVelocity);
+	//CurrentVelocity = NewVelocity;
+}
+
+void UKartReplicationComponent::InterpolateRotation(float LerpRatio){
+	FQuat TargetRotation = ServerState.Tranform.GetRotation();
+	FQuat StartRotation = ClientStartTransform.GetRotation();
+	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
+
+	GetOwner()->SetActorRotation(NewRotation);
+}
+```
+
 # 32 Client Interpolation Mesh Offset ##
 
 ## Understanding mesh offseting.
+1. Box Collider is the Root components and Mesh components is follow Root
+2. Set Box Collider on Last Server State and Simulate Mesh component's location make solve to collision problem.
+
 ## Set up the mesh offset root component.
+- Uncheck __Rendering-"Hidden in Game"__ to show collider in game
+
+### 1. Create On Blueprint
+1. Create Scene Component on Box. parenting others to this
+2. Connecting Scene Component to C++
+	- Create Code on C++, Call in On BP script
+```c++
+	UPROPERTY(VisibleAnywhere)
+	USceneComponent* MeshOffsetRoot;
+	
+	/* Set MeshOffsetRoot things created in Blueprint */
+	UFUNCTION(BlueprintCallable)
+	void SetMeshOffsetRoot(USceneComponent* Root) { MeshOffsetRoot = Root; }
+```
+![img](./img/111.RootBlueprint.png)
+- Target is Object who call this function
+- Root is variable
+
+### 2. Create on C++
+1. Get Componented has exact name and casting exact type.
+```c++
+void UKartReplicationComponent::BeginPlay()
+{
+	UObject* MeshOffsetObjectObject = GetOwner()->GetDefaultSubobjectByName("MeshOffsetRoot");
+	if (MeshOffsetObjectObject)
+	{
+		MeshOffsetRoot = Cast<USceneComponent>(MeshOffsetObjectObject);
+	}
+}
+```
+- Why we use a new USceneComponent instead of SkeletalMesh itself? I found that it is due to skeletal mesh is not a scene component itself and we cannot set world position to it.
+
 ## Manipulating the offset instead.
+1. Every Updates Set the location of Root(Collider)
+```c++
+void UKartReplicationComponent::SimulatedProxy_ServerState()
+{
+	if (MeshOffsetRoot != nullptr) {
+		// Set World Location and Rotation
+		ClientStartTransform.SetLocation(MeshOffsetRoot->GetComponentLocation());
+		ClientStartTransform.SetRotation(MeshOffsetRoot->GetComponentQuat());
+	}
+
+	/* For Collider */
+	GetOwner()->SetActorTransform(ServerState.Tranform);
+}
+```
+
+2. Simulating upon the Cubic interpolation.
+```c++
+void UKartReplicationComponent::InterpolateLocation(const FHermiteCubicSpline& Spline, float LerpRatio)
+{
+	if (MeshOffsetRoot != nullptr) {
+		MeshOffsetRoot->SetWorldLocation(NewLocation);
+	}
+
+}
+
+void UKartReplicationComponent::InterpolateRotation(float LerpRatio)
+{
+	if (MeshOffsetRoot != nullptr) {
+		MeshOffsetRoot->SetWorldRotation(NewRotation);
+	}
+}
+
+```
+
+
+## Tips
+- The root component of all actors necessarily must be a scene component. 
+
+### Why normal Frequency makes strange glitching?
+- Because Lerp values goes over 1 and makes everything collapse.
+https://community.gamedev.tv/t/theres-a-really-cool-bug-if-you-are-getting-glitching/155412
+```c++
+void UKartReplicationComponent::ClientTick(float DeltaTime)
+{
+	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	LerpRatio = FMath::Clamp(LerpRatio, 0.f, 1.f);
+}
+```
 
 # 33 Advanced Cheat Protection #
-
 ## Bounding the inputs.
 ## Stressing our DeltaTime.
-## Tracking simulation time.
+
+## How to cheating? 
+1. Increase or multiply large value on "DeltaTime"
+2. Increase or multiply large value on "Input Value"
+3. Execute 'Sending input information' multiple times
+```c++
+void UKartReplicationComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	UnacknowledgedMoves.Add(LastMove);
+	ServerSendMove(LastMove);
+	ServerSendMove(LastMove);
+	ServerSendMove(LastMove);
+}
+```
+
+
+## How to Protecting?
+- Server_SendMove_Validate is being called on the authorative server only
+```c++
+struct FKartMoveFactor{
+	bool isValid() const{
+		return FMath::Abs(Throttle) <= 1.f && FMath::Abs(SteeringThrow) <=1.f;
+	}
+};
+
+void UKartReplicationComponent::ServerSendMove_Implementation(FKartMoveFactor Movement){
+	ClientSimulatedTime += Movement.DeltaTime;
+}
+// Server_SendMove_Validate is being called on the authorative server only
+bool UKartReplicationComponent::ServerSendMove_Validate(FKartMoveFactor Movement){
+	float ProposedTime = ClientSimulatedTime + Movement.DeltaTime;
+	bool isServerPast= ProposedTime < GetWorld()->GetGameState()->GetServerWorldTimeSeconds();
+
+	if (!isServerPast) { return false; }
+
+	if (!Movement.isValid()) { return false; }
+	return true;
+}
+```
+
+
+## Does Bad NetWork violate DeltaTime Cheat protection?
+in DefaultEngine.ini Set below
+- set PktOrder to 1 which causes packages to arrive unordered
+- PktDup set to 10 which translates to a 10% chance of receiving duplicates.
+- Such cases are completely possible when playing over the internet and I think they shouldn't be treated as cheating attempts. But that's what we basically do when we duplicate theServer_SendMove function around the 7 minute mark to mimic multiple calls.
+```txt
+[PacketSimulationSettings]
+PktLag=1000
+PktLagVariance=500
+PktLoss=10
+PktOrder=1
+PktDup=10
+```
+-However, network errors also shouldn't mess up the simulation. Something that happened to me as my cubic interpolation went completely crazy with the applied settings. (due to duplicates and unordered packages) 
+- Luckily the solution was quite simple. Just add a member variable bReceivedInvalidState and the following lines to your UGoKartReplicator (added some comments for additional info):
+
+```c++
+// Server_SendMove_Validate is being called on the authorative server only
+bool UGoKartReplicationComponent::ServerSendMove_Validate(const FGoKartMove& Move)
+{
+    // Check if the arrived package is either a duplicate (equal timestamps = .0f) or if the incoming
+    // value is older then the already applied one due to unordered arrival (negative float)
+    bReceivedInvalidState = Move.Timestamp - ServerState.LastMove.Timestamp < SMALL_NUMBER;
+    // Return true as it is a network error and not a cheat attempt!
+    if (bReceivedInvalidState) return true;
+ 
+    // Your cheat protection code comes here ...
+}
+void UGoKartReplicationComponent::ServerSendMove_Implementation(const FGoKartMove& Move)
+{
+    // Don't simulate anything if we received a duplicate or older package
+    if (!MovementComponent || bReceivedInvalidState) return;
+    MovementComponent->SimulateMove(Move);
+    UpdateServerState(Move);
+}
+```
+
+## Tips, QnA
+### Does fluent Network Frequency makes Jittering?
+https://www.udemy.com/course/unrealmultiplayer/learn/quiz/4360598#questions/9359657
+
+
+### Dedicated Server Tips
+- Amazon Cognito + Lambda + DynamoDB or Firebase
+
+### How much NetUpdateFrequency is Enough to play?
+- With a NetUpdateFrequency of 60, it shouldn't ever have to interpolate if your display is also 60hz which is why lerp is probably doing a fine job. For a racing game, 10 should be high enough according to UE docs and then interpolation will kick in.
+
+- NetUpdateFrequency works by updating once every 1/NetUpdateFrequency seconds regardless of framerate. You can set the variables in tick which may run 1/60th second or 1/250th second but the NetUpdateFrequency will govern the speed at which all clients are updated.
+
+### How do we limit our RPCs and decouple them from our client tick rates?
+[QnA](https://www.udemy.com/course/unrealmultiplayer/learn/lecture/8617648#questions/15028926)
+
+- I'm assuming we would still want to process all of the movement locally on tick, and create a move each tick. Then we could just send all of the unsent moves to the server as a list when we hit our interval. The size of the list that would be sent would scale with frame rate, but seems pretty manageable if we were using reasonable max FPS and maximum RPC frequencies. At 300 fps and limiting our RPCs to a max of 60 per second, the size of that move list that would need to be sent with each RPC would only be 5, or 10 if we went to 30 RPCs per second.
+
+__Am I making this more complicated than it needs to be?__
+- Is it standard practice to just send the movement each client tick via RPC, or is this actually something that most games need a solution for. It seems to me like it would be a fairly significant issue in any multiplayer game with more than a few players (and possibly even with a very low player count), but I could be way off base.
+
+- You shouldn't need to send all moves, really you just need to send the current position unless you're talking about knowing if a player has been shot in the last 1/30th second for example.Really, very few people have displays capable of more than 60fps. I would focus more on maintaining reliable 60fps and reliable comms than worrying about the 1% or so of users who can handle more.
+
+- use a timer. That way you have control over the frequency at which updates are sent. You could set the interval to 100ms or something.
+
+- [GamePlay Timer](https://docs.unrealengine.com/4.26/en-US/ProgrammingAndScripting/ProgrammingWithCPP/UnrealArchitecture/Timers/)
+
+
+### how would you go with replicating physics and syncing physics objects between clients?
+- I think you would need to give the client more authority. So instead of reporting its control input it would send position, velocity and control. The server would need more heuristic checking to see if the result seems in keeping with what it would expect (with some margin for error). Obviously, the margin for error could be exploited by cheaters but you have to accept some of that to allow the game to be more fun and responsive.
+
+
+
+### input sometimes not working on client after server travel
+- The player controller is free from such replication/spawning/possessing issues, and will just forward the input to the pawn. So I removed the SetupPlayerInputComponent() from my pawn, and I added it in my player controller ( virtual void SetupInputComponent() override; )

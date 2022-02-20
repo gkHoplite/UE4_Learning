@@ -11,15 +11,21 @@ struct FKartMoveFactor
 {
 	GENERATED_BODY()
 
-		UPROPERTY()
-		float Throttle;
 	UPROPERTY()
-		float SteeringThrow;
+	float Throttle;
+	
+	UPROPERTY()
+	float SteeringThrow;
 
 	UPROPERTY()
-		float DeltaTime;
+	float DeltaTime;
 	UPROPERTY()
-		float Time;
+	float Time;
+
+	bool isValid() const
+	{
+		return FMath::Abs(Throttle) <= 1.f && FMath::Abs(SteeringThrow) <=1.f;
+	}
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )

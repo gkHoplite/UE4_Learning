@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "KartMovementComponent.h"
-
 #include "KartReplicationComponent.generated.h"
 
 
@@ -22,6 +21,18 @@ struct FKartState
 
 	UPROPERTY()
 	FKartMoveFactor LastMove;
+};
+
+struct FHermiteCubicSpline {
+	FVector StartLocation, StartDerivative, TargetLocation, TargetDerivative;
+
+	FVector GetCubicInterpolate(float LerpRatio) const {
+		//return FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
+		return FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	}
+	FVector GetCubicInterpolateDerivative(float LerpRatio) const {
+		return FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	}
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -54,12 +65,21 @@ private:
 	void replicatedUsing_ServerState();
 	void AutonomousProxy_ServerState();
 	void SimulatedProxy_ServerState();
+
+	FHermiteCubicSpline CreateSpline();
 	void ClientTick(float DeltaTime);
+	void InterpolateLocation(const FHermiteCubicSpline& Spline, float LerpRatio);
+	void InterpolateVelocity(const FHermiteCubicSpline& Spline, float LerpRatio);
+	void InterpolateRotation(float LerpRatio);
 
 private:
 	float ClientTimeSinceUpdate;
 	float ClientTimeBtwLastUpdate;
 	FTransform ClientStartTransform;
+	FVector ClientStartVelocity;
+	FVector CurrentVelocity;
+
+	float ClientSimulatedTime;
 
 	/* Replicated Using VS Replcated
 	Replicated Transform isn't used in Client's side code.
@@ -71,4 +91,11 @@ private:
 
 	UPROPERTY()
 	class UKartMovementComponent* MovementComponent;
+
+	UPROPERTY(VisibleAnywhere)
+	USceneComponent* MeshOffsetRoot;
+	
+	/* Connect USceneComponent with things created in Blueprint */
+	//UFUNCTION(BlueprintCallable)  // Executed on BP
+	//void SetMeshOffsetRoot(USceneComponent* Root) { MeshOffsetRoot = Root; }
 };

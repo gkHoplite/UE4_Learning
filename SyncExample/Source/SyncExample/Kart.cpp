@@ -4,7 +4,14 @@
 #include "Kart.h"
 #include <Components/InputComponent.h>
 #include "Math/Vector.h"
+
 #include <DrawDebugHelpers.h>
+
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
+
+
+#include "Components/SkeletalMeshComponent.h"
 
 // Sets default values
 AKart::AKart()
@@ -26,7 +33,7 @@ void AKart::BeginPlay()
 	//the number of times per second to replicate
 	if (HasAuthority())
 	{
-		NetUpdateFrequency = 1;
+		NetUpdateFrequency = 30;
 	}
 }
 

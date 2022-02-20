@@ -2,6 +2,7 @@
 
 
 #include "KartReplicationComponent.h"
+#include <GameFramework/GameStateBase.h>
 #include <Net/UnrealNetwork.h>
 
 // Sets default values for this component's properties
@@ -19,8 +20,13 @@ void UKartReplicationComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	MovementComponent = GetOwner()->FindComponentByClass<UKartMovementComponent>();
-	// ...
-	
+		
+	// Get MeshOffsetRoot created by blueprint
+	UObject* MeshOffsetObjectObject = GetOwner()->GetDefaultSubobjectByName("MeshOffsetRoot");
+	if (MeshOffsetObjectObject)
+	{
+		MeshOffsetRoot = Cast<USceneComponent>(MeshOffsetObjectObject);
+	}
 }
 
 // Called every frame
@@ -35,8 +41,9 @@ void UKartReplicationComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	{
 	case ENetRole::ROLE_AutonomousProxy:
 		UnacknowledgedMoves.Add(LastMove);
-		ServerSendMove(MovementComponent->GetLastMove());
+		ServerSendMove(LastMove);
 		break;
+
 	case ENetRole::ROLE_Authority:
 		/* Checking RemoteRole is SimulatedProxy
 		 * it differ from PIE and Editor
@@ -90,31 +97,94 @@ void UKartReplicationComponent::AutonomousProxy_ServerState()
 
 void UKartReplicationComponent::SimulatedProxy_ServerState()
 {
+	if (MovementComponent == nullptr) { return; }
 	ClientTimeBtwLastUpdate= ClientTimeSinceUpdate;
 	ClientTimeSinceUpdate = 0;
 
-	ClientStartTransform = GetOwner()->GetActorTransform();
+	if (MeshOffsetRoot != nullptr) {// Update collider and mesh seperately
+		// Set World Location and Rotation
+		ClientStartTransform.SetLocation(MeshOffsetRoot->GetComponentLocation());
+		ClientStartTransform.SetRotation(MeshOffsetRoot->GetComponentQuat());
+	} 
+	//else { // Instead of Seperate Update do together
+	//	ClientStartTransform = GetOwner()->GetActorTransform();
+	//	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, FString("MeshOffset is Nullptr!"));
+	//}
+	
+	// MovementComponent Didn't simulate Simulated_Proxy
+	ClientStartVelocity = MovementComponent->GetVelocity();
+	//ClientStartVelocity = CurrentVelocity;
+
+	/* For Collider */
+	GetOwner()->SetActorTransform(ServerState.Tranform);
+}
+
+FHermiteCubicSpline UKartReplicationComponent::CreateSpline()
+{
+	FHermiteCubicSpline Spline;
+	Spline.TargetLocation = ServerState.Tranform.GetLocation();
+	Spline.StartLocation = ClientStartTransform.GetLocation();
+
+	float convertToMeter = 100.f;
+	Spline.StartDerivative = ClientStartVelocity * ClientTimeBtwLastUpdate * convertToMeter;   // from cm
+	Spline.TargetDerivative = ServerState.Velocity * ClientTimeBtwLastUpdate * convertToMeter; // to meter
+	return Spline;
 }
 
 void UKartReplicationComponent::ClientTick(float DeltaTime)
 {
 	ClientTimeSinceUpdate += DeltaTime;
 
-	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) return;
-
+	if (ClientTimeBtwLastUpdate < KINDA_SMALL_NUMBER) { return; }
 	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBtwLastUpdate;
+	LerpRatio = FMath::Clamp(LerpRatio, 0.f, 1.f);
 
-	/* Location */
-	FVector TargetLocation = ServerState.Tranform.GetLocation();
-	FVector StartLocation = ClientStartTransform.GetLocation();
-	FVector NewLocation = FMath::LerpStable(StartLocation, TargetLocation, LerpRatio);
-	GetOwner()->SetActorLocation(NewLocation);
+	FHermiteCubicSpline Spline = CreateSpline();
+	InterpolateLocation(Spline, LerpRatio);
+	InterpolateVelocity(Spline, LerpRatio);
+	InterpolateRotation(LerpRatio);
+}
 
-	/* Rotation */ 
+void UKartReplicationComponent::InterpolateLocation(const FHermiteCubicSpline& Spline, float LerpRatio)
+{
+	FVector NewLocation = Spline.GetCubicInterpolate(LerpRatio);
+	
+	if (MeshOffsetRoot != nullptr) {// Update collider and mesh seperately
+		MeshOffsetRoot->SetWorldLocation(NewLocation);
+	}
+	//else {// Instead of Seperate Update do together
+	//	GetOwner()->SetActorLocation(NewLocation);
+	//}
+}
+
+void UKartReplicationComponent::InterpolateVelocity(const FHermiteCubicSpline& Spline, float LerpRatio)
+{
+	float convertToMeter = 100.f;
+
+	/*		1. Velocity = Car's direction and Speed	*/
+	FVector NewDerivative = Spline.GetCubicInterpolateDerivative(LerpRatio);
+	// When CTBLU is quite small makes Error but fine we already check on top guard
+	// !!Error: deleting parentheses cause problem
+	FVector NewVelocity = NewDerivative / (ClientTimeBtwLastUpdate * convertToMeter);
+
+	// MovementComponent Didn't simulate Simulated_Proxy
+	MovementComponent->SetVelocity(NewVelocity);
+	//CurrentVelocity = NewVelocity;
+}
+
+void UKartReplicationComponent::InterpolateRotation(float LerpRatio)
+{
 	FQuat TargetRotation = ServerState.Tranform.GetRotation();
 	FQuat StartRotation = ClientStartTransform.GetRotation();
+	//FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
 	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
-	GetOwner()->SetActorRotation(NewRotation);
+
+	if (MeshOffsetRoot != nullptr) { // Update collider and mesh seperately
+		MeshOffsetRoot->SetWorldRotation(NewRotation);
+	}
+	//else {// Instead of Seperate Update do together
+	//	GetOwner()->SetActorRotation(NewRotation);
+	//}
 }
 
 void UKartReplicationComponent::UpdateServerState(const FKartMoveFactor& Move)
@@ -145,6 +215,9 @@ void UKartReplicationComponent::ServerSendMove_Implementation(FKartMoveFactor Mo
 {
 	if (MovementComponent == nullptr) { return; }
 
+	// Cheat Protection for DeltaTime
+	ClientSimulatedTime += Movement.DeltaTime;
+
 	// Only Server called this _Implementation function
 	// Client Call ServerMove
 	MovementComponent->SimulateMove(Movement);
@@ -153,5 +226,17 @@ void UKartReplicationComponent::ServerSendMove_Implementation(FKartMoveFactor Mo
 
 bool UKartReplicationComponent::ServerSendMove_Validate(FKartMoveFactor Movement)
 {
+	float ProposedTime = ClientSimulatedTime + Movement.DeltaTime;
+	bool isServerPast= ProposedTime < GetWorld()->GetGameState()->GetServerWorldTimeSeconds();
+
+	if (!isServerPast) {
+		UE_LOG(LogTemp, Error, TEXT("Client is running too fast"));
+		return false;
+	}
+
+	if (!Movement.isValid()) {
+		UE_LOG(LogTemp, Error, TEXT("invalid input value came in"));
+		return false;
+	}
 	return true;
 }
