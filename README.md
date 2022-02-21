@@ -13,3 +13,5 @@ Repository For Practice with "Learn C++ and Make Video Games"
     - Create and binding delegates with UI
     - Multiplayer with Onlinesubsystem in SteamSDK and Null(Local)
 - Sync
+    - Solve Latency Problem btw Server and Clietn with Hermite Cubic Spline 
+    - code for each scenario, autonomous proxy, simulated proxy, authority.
