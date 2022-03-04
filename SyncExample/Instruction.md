@@ -1157,7 +1157,7 @@ PktLoss=10
 PktOrder=1
 PktDup=10
 ```
--However, network errors also shouldn't mess up the simulation. Something that happened to me as my cubic interpolation went completely crazy with the applied settings. (due to duplicates and unordered packages) 
+- However, network errors also shouldn't mess up the simulation. Something that happened to me as my cubic interpolation went completely crazy with the applied settings. (due to duplicates and unordered packages) 
 - Luckily the solution was quite simple. Just add a member variable bReceivedInvalidState and the following lines to your UGoKartReplicator (added some comments for additional info):
 
 ```c++
@@ -1181,10 +1181,9 @@ void UGoKartReplicationComponent::ServerSendMove_Implementation(const FGoKartMov
 }
 ```
 
-## Tips, QnA
+# Tips, QnA
 ### Does fluent Network Frequency makes Jittering?
 https://www.udemy.com/course/unrealmultiplayer/learn/quiz/4360598#questions/9359657
-
 
 ### Dedicated Server Tips
 - Amazon Cognito + Lambda + DynamoDB or Firebase
@@ -1216,3 +1215,6 @@ __Am I making this more complicated than it needs to be?__
 
 ### input sometimes not working on client after server travel
 - The player controller is free from such replication/spawning/possessing issues, and will just forward the input to the pawn. So I removed the SetupPlayerInputComponent() from my pawn, and I added it in my player controller ( virtual void SetupInputComponent() override; )
+
+### Collision Detection for Solid Objects
+https://www.toptal.com/game/video-game-physics-part-ii-collision-detection-for-solid-objects

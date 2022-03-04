@@ -33,7 +33,7 @@ void AKart::BeginPlay()
 	//the number of times per second to replicate
 	if (HasAuthority())
 	{
-		NetUpdateFrequency = 30;
+		NetUpdateFrequency = 1;
 	}
 }
 
