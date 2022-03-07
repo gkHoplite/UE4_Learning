@@ -15,3 +15,6 @@ Repository For Practice with "Learn C++ and Make Video Games"
 - Sync
     - Solve Latency Problem btw Server and Clietn with Hermite Cubic Spline 
     - code for each scenario, autonomous proxy, simulated proxy, authority.
+
+3. Practice Animation in Blueprint
+- BP Ragdoll

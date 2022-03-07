@@ -47,7 +47,7 @@ void UKartMovementComponent::SimulateMove(const FKartMoveFactor& Movement)
 
 	/* Add Rolling Resistance */
 	Force += GetRollingResistance();
-
+	
 	// (a = F / m) == (F = m * a)
 	FVector Acceleration = Force / Mass;
 
